@@ -18,6 +18,7 @@ export function ShareDialog({ file, onChanged, onClose }: ShareDialogProps) {
   const [password, setPassword] = useState('');
   const [suggestions, setSuggestions] = useState<UserSummary[]>([]);
   const [busy, setBusy] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inspector = useInspector();
   const toast = useToast();
@@ -52,7 +53,7 @@ export function ShareDialog({ file, onChanged, onClose }: ShareDialogProps) {
     try {
       const { file: updated, trace } = await api.share(file.id, username.trim(), password);
       inspector.record(trace, file.originalName);
-      toast.success(`"${file.originalName}" dibagikan ke ${username.trim().toLowerCase()}.`);
+      toast.success(`"${file.originalName}" shared with ${username.trim().toLowerCase()}.`);
       onChanged(updated);
       setUsername('');
       setPassword('');
@@ -64,47 +65,53 @@ export function ShareDialog({ file, onChanged, onClose }: ShareDialogProps) {
   }
 
   async function handleRevoke(userId: string, recipient: string) {
+    if (revokingId) return;
+    setRevokingId(userId);
     try {
       const { file: updated } = await api.revokeShare(file.id, userId);
-      toast.success(`Akses ${recipient} dicabut.`);
+      toast.success(`Access revoked for ${recipient}.`);
       onChanged(updated);
     } catch (thrown) {
       toast.error(errorMessage(thrown));
+    } finally {
+      setRevokingId(null);
     }
   }
 
   return (
-    <Modal title={`Bagikan "${file.originalName}"`} onClose={busy ? () => {} : onClose} size="lg">
-      <p className="text-sm text-slate-300">
-        Kunci AES file dibuka dengan private key Anda, lalu dibungkus ulang dengan public key penerima. Isi file tidak
-        dienkripsi ulang.
+    <Modal title={`Share "${file.originalName}"`} onClose={onClose} busy={busy} size="lg">
+      <p className="text-sm text-ink-soft">
+        The file's AES key is unwrapped with your private key, then re-wrapped with the recipient's public key. The file
+        contents are not re-encrypted.
       </p>
 
-      <form onSubmit={handleShare} className="mt-4 space-y-3">
+      <form onSubmit={handleShare} className="mt-4 space-y-4">
         <div>
           <label htmlFor="share-username" className="label">
-            Username penerima
+            Recipient username
           </label>
           <input
             id="share-username"
             className="input"
             autoFocus
             autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             disabled={busy}
           />
           {suggestions.length > 0 && (
-            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Matching users">
               {suggestions.map((user) => (
                 <li key={user.id}>
                   <button
                     type="button"
-                    className="cursor-pointer rounded-md border border-slate-700 px-2 py-1 text-left text-xs hover:border-emerald-400"
+                    className="btn min-h-0 px-2.5 py-1 text-xs"
                     onClick={() => setUsername(user.username)}
                   >
-                    <span className="text-slate-100">{user.username}</span>
-                    <span className="ml-2 font-mono text-slate-500">{shortFingerprint(user.encKeyFingerprint)}</span>
+                    <span className="text-ink">{user.username}</span>
+                    <span className="ml-2 font-mono text-ink-muted">{shortFingerprint(user.encKeyFingerprint)}</span>
                   </button>
                 </li>
               ))}
@@ -113,7 +120,7 @@ export function ShareDialog({ file, onChanged, onClose }: ShareDialogProps) {
         </div>
         <div>
           <label htmlFor="share-password" className="label">
-            Password akun Anda
+            Your account password
           </label>
           <input
             id="share-password"
@@ -126,40 +133,45 @@ export function ShareDialog({ file, onChanged, onClose }: ShareDialogProps) {
           />
         </div>
         {error && (
-          <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+          <p role="alert" className="alert alert-error">
             {error}
           </p>
         )}
         <div className="flex justify-end">
           <button type="submit" className="btn btn-primary" disabled={busy || username.trim().length === 0 || password.length === 0}>
             {busy && <LoaderCircle className="size-4 animate-spin" />}
-            {busy ? 'Membungkus kunci…' : 'Bagikan'}
+            {busy ? 'Wrapping key…' : 'Share'}
           </button>
         </div>
       </form>
 
-      <div className="mt-5 border-t border-slate-800 pt-4">
-        <h3 className="text-sm font-medium text-slate-200">Yang punya akses</h3>
+      <div className="groove-t mt-6 pt-4">
+        <h3 className="text-sm font-medium text-ink">People with access</h3>
         {file.sharedWith.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">Belum dibagikan ke siapa pun.</p>
+          <p className="mt-2 text-sm text-ink-muted">Not shared with anyone yet.</p>
         ) : (
-          <ul className="mt-2 divide-y divide-slate-800">
+          <ul className="mt-2 divide-y divide-line">
             {file.sharedWith.map((recipient) => (
               <li key={recipient.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-slate-100">{recipient.username}</p>
-                  <p className="text-xs text-slate-500">sejak {formatDate(recipient.sharedAt)}</p>
+                  <p className="truncate text-sm text-ink">{recipient.username}</p>
+                  <p className="text-xs text-ink-muted">since {formatDate(recipient.sharedAt)}</p>
                 </div>
-                <button type="button" className="btn btn-danger" onClick={() => void handleRevoke(recipient.id, recipient.username)}>
-                  <UserMinus className="size-4" />
-                  Cabut
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={revokingId !== null}
+                  onClick={() => void handleRevoke(recipient.id, recipient.username)}
+                >
+                  {revokingId === recipient.id ? <LoaderCircle className="size-4 animate-spin" /> : <UserMinus className="size-4" />}
+                  Revoke
                 </button>
               </li>
             ))}
           </ul>
         )}
-        <p className="mt-3 text-xs text-slate-500">
-          Mencabut akses menghapus wrapped key penerima. Salinan yang sudah diunduh penerima tidak bisa ditarik kembali.
+        <p className="hint mt-3">
+          Revoking access deletes the recipient's wrapped key. Copies they have already downloaded cannot be recalled.
         </p>
       </div>
     </Modal>

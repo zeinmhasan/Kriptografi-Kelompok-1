@@ -12,7 +12,7 @@ import { sha256 } from '../crypto/sha256.ts';
 import { HttpError, forbidden, notFound } from '../errors.ts';
 import { type FileDocument, StoredFile } from '../models/StoredFile.ts';
 import type { UserDocument } from '../models/User.ts';
-import { type Tracer, hidden, preview } from './trace.ts';
+import { type Tracer, byteCount, hidden, preview } from './trace.ts';
 
 export interface UploadInput {
   originalName: string;
@@ -44,21 +44,21 @@ export async function storeEncryptedFile(owner: UserDocument, input: UploadInput
   const aadText = fileAadText(fileId.toString(), owner.id);
 
   const plaintextHash = tracer.step(
-    'Hash isi file asli',
+    'Hash the original file contents',
     'SHA-256',
     () => sha256(data),
-    (hash) => ({ ukuran: `${data.length} byte`, hash: bytesToHex(hash) }),
+    (hash) => ({ size: byteCount(data.length), hash: bytesToHex(hash) }),
   );
 
   const { fileKey, iv } = tracer.step(
-    'Bangkitkan kunci AES dan IV acak',
+    'Generate a random AES key and IV',
     'CSPRNG',
     () => ({ fileKey: randomBytes(32), iv: randomBytes(12) }),
-    (generated) => ({ kunciAes: hidden(generated.fileKey), iv: bytesToHex(generated.iv) }),
+    (generated) => ({ aesKey: hidden(generated.fileKey), iv: bytesToHex(generated.iv) }),
   );
 
   const encrypted = tracer.step(
-    'Enkripsi isi file',
+    'Encrypt the file contents',
     'AES-256-GCM',
     () => gcmEncrypt(fileKey, iv, data, utf8ToBytes(aadText)),
     (result) => ({
@@ -69,10 +69,10 @@ export async function storeEncryptedFile(owner: UserDocument, input: UploadInput
   );
 
   const wrappedKey = tracer.step(
-    'Bungkus kunci AES dengan public key pemilik',
+    "Wrap the AES key with the owner's public key",
     'RSA-OAEP',
     () => oaepEncrypt(publicKeyFromJwk(owner.encPublicKey), fileKey),
-    (wrapped) => ({ fingerprintPublicKey: owner.encKeyFingerprint, wrappedKey: preview(wrapped, 16) }),
+    (wrapped) => ({ publicKeyFingerprint: owner.encKeyFingerprint, wrappedKey: preview(wrapped, 16) }),
   );
 
   const storedName = `${bytesToHex(randomBytes(16))}.enc`;
@@ -103,7 +103,7 @@ export async function readCiphertext(file: FileDocument): Promise<Uint8Array> {
     return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.length);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new HttpError(410, 'CIPHERTEXT_MISSING', 'File terenkripsi tidak ditemukan di storage.');
+      throw new HttpError(410, 'CIPHERTEXT_MISSING', 'The encrypted file is missing from storage.');
     }
     throw error;
   }
@@ -111,30 +111,30 @@ export async function readCiphertext(file: FileDocument): Promise<Uint8Array> {
 
 export function wrappedKeyFor(file: FileDocument, user: UserDocument): Uint8Array {
   const entry = file.wrappedKeys.find((key) => key.userId.equals(user._id));
-  if (!entry) throw notFound('File tidak ditemukan.');
+  if (!entry) throw notFound('File not found.');
   return base64urlDecode(entry.wrappedKey);
 }
 
 export function unwrapFileKey(file: FileDocument, user: UserDocument, privateKey: RsaPrivateKey, tracer: Tracer): Uint8Array {
   const wrapped = wrappedKeyFor(file, user);
   return tracer.step(
-    'Buka kunci AES file dengan private key',
+    'Unwrap the file AES key with the private key',
     'RSA-OAEP',
     () => oaepDecrypt(privateKey, wrapped),
-    (fileKey) => ({ wrappedKey: preview(wrapped, 16), kunciAes: hidden(fileKey) }),
+    (fileKey) => ({ wrappedKey: preview(wrapped, 16), aesKey: hidden(fileKey) }),
   );
 }
 
 export function decryptCiphertext(file: FileDocument, fileKey: Uint8Array, ciphertext: Uint8Array, tracer: Tracer): Uint8Array {
   return tracer.step(
-    'Verifikasi tag lalu dekripsi isi file',
+    'Verify the tag, then decrypt the file contents',
     'AES-256-GCM',
     () => gcmDecrypt(fileKey, hexToBytes(file.iv), ciphertext, hexToBytes(file.authTag), fileAad(file)),
     (plaintext) => ({
       aad: fileAadText(file.id, file.ownerId.toString()),
       iv: file.iv,
       authTag: file.authTag,
-      ukuran: `${plaintext.length} byte`,
+      size: byteCount(plaintext.length),
     }),
   );
 }
@@ -152,7 +152,7 @@ export async function decryptStoredFile(
 
 export function hashPlaintext(plaintext: Uint8Array, tracer: Tracer): Uint8Array {
   return tracer.step(
-    'Hash isi file',
+    'Hash the file contents',
     'SHA-256',
     () => sha256(plaintext),
     (hash) => ({ hash: bytesToHex(hash) }),
@@ -168,14 +168,14 @@ export function isOwner(file: FileDocument, user: UserDocument): boolean {
 export async function findAccessibleFile(id: string, user: UserDocument): Promise<FileDocument> {
   const file = isValidObjectId(id) ? await StoredFile.findById(id) : null;
   if (!file || !file.wrappedKeys.some((key) => key.userId.equals(user._id))) {
-    throw notFound('File tidak ditemukan.');
+    throw notFound('File not found.');
   }
   return file;
 }
 
 export async function findOwnedFile(id: string, user: UserDocument): Promise<FileDocument> {
   const file = await findAccessibleFile(id, user);
-  if (!isOwner(file, user)) throw forbidden('Hanya pemilik file yang boleh melakukan ini.');
+  if (!isOwner(file, user)) throw forbidden('Only the file owner can do this.');
   return file;
 }
 

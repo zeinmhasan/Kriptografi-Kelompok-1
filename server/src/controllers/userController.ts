@@ -31,6 +31,6 @@ export async function searchUsers(req: Request, res: Response): Promise<void> {
 // dan untuk memverifikasi tanda tangannya.
 export async function getPublicKeys(req: Request, res: Response): Promise<void> {
   const user = await User.findOne({ username: routeParam(req, 'username').toLowerCase() });
-  if (!user) throw notFound('User tidak ditemukan.');
+  if (!user) throw notFound('User not found.');
   res.json(serializePublicKeys(user));
 }

@@ -84,11 +84,11 @@ Dua pengecualian dari aturan "tanpa library":
 
 1. Daftarkan dua akun di dua jendela browser. Crypto Inspector menampilkan pembangkitan kedua key pair.
 2. Upload file. Inspector menampilkan hash, IV, auth tag, dan kunci AES yang terbungkus.
-3. Buka file di **My Files** untuk melihat metadatanya, lalu **Dekripsi & Unduh**.
-4. **Tanda Tangani**, **Verifikasi**, lalu **Ekspor .sig**.
-5. **Bagikan** ke akun kedua. Di akun kedua, buka **Shared** dan dekripsi dengan password akun itu sendiri.
+3. Buka file di **My Files** untuk melihat metadatanya, lalu **Decrypt & Download**.
+4. **Sign**, **Verify**, lalu **Export .sig**.
+5. **Share** ke akun kedua. Di akun kedua, buka **Shared** dan dekripsi dengan password akun itu sendiri.
 6. Di akun kedua, buka **Verify** dan periksa file asli dengan `.sig`-nya. Ubah satu byte file itu lalu periksa lagi.
-7. **Uji Tamper** pada file: sembilan percobaan pembalikan satu bit.
+7. **Tamper Test** pada file: sembilan percobaan pembalikan satu bit.
 8. **Crypto Lab**: jalankan Self-Test dan Benchmark.
 
 ## Batasan

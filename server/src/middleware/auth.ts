@@ -39,7 +39,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   try {
     userId = verifyJwt(token, config.jwtSecret).sub;
   } catch (error) {
-    if (error instanceof JwtError) throw unauthorized('Sesi berakhir. Silakan login kembali.');
+    if (error instanceof JwtError) throw unauthorized('Your session has expired. Log in again.');
     throw error;
   }
 

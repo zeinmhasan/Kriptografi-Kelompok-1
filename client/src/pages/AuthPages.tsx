@@ -1,32 +1,36 @@
 import { Lock, LoaderCircle, TriangleAlert } from 'lucide-react';
-import { type FormEvent, type ReactNode, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useInspector } from '../hooks/useInspector';
 import { errorMessage } from '../services/api';
 
 function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle: string; children: ReactNode; footer: ReactNode }) {
+  useEffect(() => {
+    document.title = `${title} · Crypta`;
+  }, [title]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
+    <main className="flex min-h-dvh items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
-          <span className="flex size-12 items-center justify-center rounded-xl bg-emerald-500/15">
-            <Lock className="size-6 text-emerald-400" />
+          <span className="well flex size-14 items-center justify-center rounded-full">
+            <Lock className="size-6 text-stamp" />
           </span>
-          <h1 className="mt-4 text-2xl font-semibold text-slate-100">{title}</h1>
-          <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
+          <h1 className="mt-4 text-2xl font-semibold text-ink">{title}</h1>
+          <p className="mt-1.5 text-sm text-ink-muted">{subtitle}</p>
         </div>
         <div className="card p-6">{children}</div>
-        <p className="mt-4 text-center text-sm text-slate-400">{footer}</p>
+        <p className="mt-4 text-center text-sm text-ink-muted">{footer}</p>
       </div>
-    </div>
+    </main>
   );
 }
 
 function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+    <p role="alert" className="alert alert-error">
       {message}
     </p>
   );
@@ -55,13 +59,13 @@ export function LoginPage() {
 
   return (
     <AuthShell
-      title="Masuk ke Crypta"
+      title="Log in to Crypta"
       subtitle="Secure File Storage & Digital Signature Platform"
       footer={
         <>
-          Belum punya akun?{' '}
-          <Link to="/register" className="text-emerald-400 hover:underline">
-            Daftar
+          No account yet?{' '}
+          <Link to="/register" className="rounded font-medium text-stamp hover:underline">
+            Register
           </Link>
         </>
       }
@@ -69,20 +73,30 @@ export function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="login-identifier" className="label">
-            Username atau email
+            Username or email
           </label>
-          <input id="login-identifier" className="input" autoFocus autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} />
+          <input
+            id="login-identifier"
+            className="input"
+            autoFocus
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+            disabled={busy}
+          />
         </div>
         <div>
           <label htmlFor="login-password" className="label">
             Password
           </label>
-          <input id="login-password" type="password" className="input" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
+          <input id="login-password" type="password" className="input" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} />
         </div>
         <FormError message={error} />
         <button type="submit" className="btn btn-primary w-full" disabled={busy || !identifier || !password}>
           {busy && <LoaderCircle className="size-4 animate-spin" />}
-          {busy ? 'Memeriksa password…' : 'Masuk'}
+          {busy ? 'Checking password…' : 'Log In'}
         </button>
       </form>
     </AuthShell>
@@ -104,14 +118,14 @@ export function RegisterPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (password !== confirmation) {
-      setError('Konfirmasi password tidak sama.');
+      setError('The passwords do not match.');
       return;
     }
     setBusy(true);
     setError(null);
     try {
       const trace = await register(username, email, password);
-      inspector.record(trace, `Akun ${username.trim().toLowerCase()}`);
+      inspector.record(trace, `Account ${username.trim().toLowerCase()}`);
     } catch (thrown) {
       setError(errorMessage(thrown));
     } finally {
@@ -121,13 +135,13 @@ export function RegisterPage() {
 
   return (
     <AuthShell
-      title="Buat akun Crypta"
-      subtitle="Dua pasang kunci RSA dibangkitkan khusus untuk Anda"
+      title="Create a Crypta account"
+      subtitle="Two RSA key pairs are generated just for you"
       footer={
         <>
-          Sudah punya akun?{' '}
-          <Link to="/login" className="text-emerald-400 hover:underline">
-            Masuk
+          Already have an account?{' '}
+          <Link to="/login" className="rounded font-medium text-stamp hover:underline">
+            Log in
           </Link>
         </>
       }
@@ -137,8 +151,21 @@ export function RegisterPage() {
           <label htmlFor="register-username" className="label">
             Username
           </label>
-          <input id="register-username" className="input" autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} disabled={busy} />
-          <p className="mt-1 text-xs text-slate-500">3-32 karakter: huruf kecil, angka, atau garis bawah.</p>
+          <input
+            id="register-username"
+            className="input"
+            autoFocus
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            aria-describedby="register-username-hint"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            disabled={busy}
+          />
+          <p id="register-username-hint" className="hint">
+            3-32 characters: lowercase letters, digits, or underscores.
+          </p>
         </div>
         <div>
           <label htmlFor="register-email" className="label">
@@ -146,37 +173,49 @@ export function RegisterPage() {
           </label>
           <input id="register-email" type="email" className="input" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} disabled={busy} />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="register-password" className="label">
-              Password
-            </label>
-            <input id="register-password" type="password" className="input" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} />
+        <div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="register-password" className="label">
+                Password
+              </label>
+              <input
+                id="register-password"
+                type="password"
+                className="input"
+                autoComplete="new-password"
+                aria-describedby="register-password-hint"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={busy}
+              />
+            </div>
+            <div>
+              <label htmlFor="register-confirmation" className="label">
+                Repeat password
+              </label>
+              <input id="register-confirmation" type="password" className="input" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={busy} />
+            </div>
           </div>
-          <div>
-            <label htmlFor="register-confirmation" className="label">
-              Ulangi password
-            </label>
-            <input id="register-confirmation" type="password" className="input" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={busy} />
-          </div>
+          <p id="register-password-hint" className="hint">
+            At least 8 characters.
+          </p>
         </div>
 
-        <p className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+        <p className="alert alert-warning text-xs">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          Password melindungi private key Anda. Jika lupa, private key tidak bisa dibuka dan semua file hilang permanen.
+          Your password protects your private keys. If you forget it, the keys cannot be unlocked and all your files are permanently lost.
         </p>
 
         <FormError message={error} />
 
         <button type="submit" className="btn btn-primary w-full" disabled={busy || !username || !email || password.length < 8 || !confirmation}>
           {busy && <LoaderCircle className="size-4 animate-spin" />}
-          {busy ? 'Membangkitkan kunci RSA…' : 'Daftar'}
+          {busy ? 'Generating RSA keys…' : 'Register'}
         </button>
-        {busy && (
-          <p className="text-center text-xs text-slate-400">
-            Mencari bilangan prima acak dengan Miller-Rabin untuk dua pasang kunci. Biasanya beberapa detik.
-          </p>
-        )}
+        <p className="text-center text-xs text-ink-muted empty:hidden" aria-live="polite">
+          {busy && 'Searching for random primes with Miller-Rabin for two key pairs. This usually takes a few seconds.'}
+        </p>
       </form>
     </AuthShell>
   );

@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-07T00:00:00Z",
+  "title": "Design System: Crypta",
+  "extensions": {
+    "colorMeta": {
+      "ground": { "role": "neutral", "displayName": "Celadon Paper", "canonical": "oklch(0.905 0.014 165)" },
+      "well": { "role": "neutral", "displayName": "Celadon Well", "canonical": "oklch(0.88 0.016 165)" },
+      "stamp": { "role": "primary", "displayName": "Stamp Violet", "canonical": "oklch(0.42 0.17 290)" },
+      "seal": { "role": "secondary", "displayName": "Seal Green", "canonical": "oklch(0.42 0.095 165)" },
+      "alert": { "role": "secondary", "displayName": "Carmine", "canonical": "oklch(0.44 0.17 22)" }
+    },
+    "typographyMeta": {
+      "data": { "displayName": "Data", "purpose": "Hex, hashes, fingerprints, counters and durations only." }
+    },
+    "shadows": [
+      { "name": "float", "value": "-6px -6px 18px oklch(0.995 0.005 165 / 0.6), 12px 16px 38px oklch(0.34 0.045 200 / 0.38)", "purpose": "Overlay Inspector and toasts." },
+      { "name": "raised", "value": "-5px -5px 12px oklch(0.995 0.005 165 / 0.92), 6px 6px 14px oklch(0.58 0.045 178 / 0.44)", "purpose": "Panels; keys on hover." },
+      { "name": "key", "value": "-2px -2px 5px oklch(0.995 0.005 165 / 0.92), 3px 3px 7px oklch(0.58 0.045 178 / 0.44)", "purpose": "Resting buttons." },
+      { "name": "sunk", "value": "inset 2px 2px 5px oklch(0.58 0.045 178 / 0.44), inset -2px -2px 5px oklch(0.995 0.005 165 / 0.92)", "purpose": "Inputs, selected items, pressed keys." },
+      { "name": "sunk-deep", "value": "inset 4px 4px 10px oklch(0.58 0.045 178 / 0.44), inset -4px -4px 10px oklch(0.995 0.005 165 / 0.92)", "purpose": "Upload tray." }
+    ],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Dialogs, drawers, toasts, the seal press." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Key Button",
+      "kind": "button",
+      "refersTo": "button-key",
+      "description": "Default raised key; presses in on click.",
+      "html": "<button class=\"ds-btn\">Share</button>",
+      "css": ".ds-btn{background:oklch(0.905 0.014 165);color:oklch(0.25 0.03 265);padding:8px 14px;min-height:36px;border:0;border-radius:10px;font:500 14px sans-serif;box-shadow:-2px -2px 5px oklch(0.995 0.005 165 / .92),3px 3px 7px oklch(0.58 0.045 178 / .44);cursor:pointer}.ds-btn:hover{box-shadow:-5px -5px 12px oklch(0.995 0.005 165 / .92),6px 6px 14px oklch(0.58 0.045 178 / .44)}.ds-btn:active{background:oklch(0.88 0.016 165);box-shadow:inset 2px 2px 5px oklch(0.58 0.045 178 / .44),inset -2px -2px 5px oklch(0.995 0.005 165 / .92)}.ds-btn:focus-visible{outline:2px solid oklch(0.42 0.17 290);outline-offset:2px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one stamp-violet action on a screen.",
+      "html": "<button class=\"ds-btn-primary\">Upload File</button>",
+      "css": ".ds-btn-primary{background:oklch(0.42 0.17 290);color:#fff;padding:8px 14px;min-height:36px;border:0;border-radius:10px;font:500 14px sans-serif;box-shadow:-2px -2px 5px oklch(0.995 0.005 165 / .92),3px 3px 7px oklch(0.58 0.045 178 / .44);cursor:pointer}.ds-btn-primary:hover{background:oklch(0.48 0.18 290)}.ds-btn-primary:active{box-shadow:inset 2px 2px 5px oklch(0.58 0.045 178 / .44)}.ds-btn-primary:focus-visible{outline:2px solid oklch(0.42 0.17 290);outline-offset:2px}"
+    },
+    {
+      "name": "Sunk Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text field cut into the paper.",
+      "html": "<input class=\"ds-input\" value=\"bob_demo\" />",
+      "css": ".ds-input{width:100%;box-sizing:border-box;background:oklch(0.88 0.016 165);color:oklch(0.25 0.03 265);padding:8px 12px;border:0;border-radius:10px;font:14px sans-serif;box-shadow:inset 2px 2px 5px oklch(0.58 0.045 178 / .44),inset -2px -2px 5px oklch(0.995 0.005 165 / .92)}.ds-input:focus-visible{outline:2px solid oklch(0.42 0.17 290)}"
+    },
+    {
+      "name": "Raised Panel",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Panel that sits above the sheet; its contents stay flush or sunk.",
+      "html": "<div class=\"ds-card\">Recent files</div>",
+      "css": ".ds-card{background:oklch(0.905 0.014 165);color:oklch(0.25 0.03 265);padding:16px;border-radius:16px;font:600 14px sans-serif;box-shadow:-5px -5px 12px oklch(0.995 0.005 165 / .92),6px 6px 14px oklch(0.58 0.045 178 / .44)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Blind-Embossed Document",
+    "overview": "One sheet of pale celadon security paper, pressed rather than printed. Relief is the state language: raised means pressable, sunk means it holds a value or is selected, flush means disabled.",
+    "keyCharacteristics": ["Single light celadon ground; no borders anywhere.", "Five relief steps and no other shadows.", "Five fixed role inks; each colour means one thing everywhere."],
+    "rules": [
+      { "name": "The One Meaning Rule", "body": "A role ink is never borrowed for decoration.", "section": "colors" },
+      { "name": "The Five-Step Rule", "body": "No shadow exists outside the five-step list.", "section": "elevation" },
+      { "name": "The No-Stack Rule", "body": "A raised panel never sits on a raised panel.", "section": "elevation" }
+    ],
+    "dos": ["Do let relief carry state: raised to press, sunk for a value or the selected item, flush for disabled."],
+    "donts": ["Don't add a visible border; use an engraved groove or a relief step."]
+  }
+}

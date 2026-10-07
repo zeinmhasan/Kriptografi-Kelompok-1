@@ -148,7 +148,7 @@ async function run(baseUrl: string): Promise<void> {
   check('nama file non-ASCII utuh', file?.originalName === fileName, file?.originalName);
   check('hash plaintext tercatat benar', file?.plaintextHash === bytesToHex(sha256(original)));
   check('jejak upload berisi 4 langkah kripto', uploaded.data.trace?.steps?.length === 4);
-  check('jejak upload tidak memuat kunci AES', !JSON.stringify(uploaded.data.trace).match(/kunciAes":"[0-9a-f]{64}/));
+  check('jejak upload tidak memuat kunci AES', !JSON.stringify(uploaded.data.trace).match(/aesKey":"[0-9a-f]{64}/));
 
   const storedFiles = await readdir(storageDir);
   check('tepat satu file .enc di storage', storedFiles.length === 1 && storedFiles[0].endsWith('.enc'));

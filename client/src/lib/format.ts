@@ -1,3 +1,5 @@
+const LOCALE = 'en-GB';
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ['KB', 'MB', 'GB'];
@@ -10,15 +12,25 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[unit]}`;
 }
 
-const dateFormat = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+const dateFormat = new Intl.DateTimeFormat(LOCALE, { dateStyle: 'medium', timeStyle: 'short' });
+const timeFormat = new Intl.DateTimeFormat(LOCALE, { timeStyle: 'medium' });
+const numberFormat = new Intl.NumberFormat(LOCALE);
 
 export function formatDate(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : dateFormat.format(date);
 }
 
+export function formatTime(date: Date): string {
+  return timeFormat.format(date);
+}
+
+export function formatNumber(value: number): string {
+  return numberFormat.format(value);
+}
+
 export function formatMs(ms: number): string {
-  if (ms >= 1000) return `${(ms / 1000).toFixed(2)} dtk`;
+  if (ms >= 1000) return `${(ms / 1000).toFixed(2)} s`;
   if (ms >= 10) return `${ms.toFixed(0)} ms`;
   return `${ms.toFixed(2)} ms`;
 }

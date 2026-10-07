@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useParameters } from '../hooks/useFiles';
 import { useInspector } from '../hooks/useInspector';
 import { useToast } from '../hooks/useToast';
-import { formatBytes, formatDate, groupHex } from '../lib/format';
+import { formatBytes, formatDate, formatNumber, groupHex } from '../lib/format';
 import { api, errorMessage } from '../services/api';
 import type { PublicJwk, PublicKeys } from '../types';
 
@@ -26,47 +26,50 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Akun, kunci publik, parameter kriptografi server, dan penggantian password." />
+      <PageHeader title="Settings" description="Your account, public keys, the server's cryptographic parameters, and password change." />
 
       <div className="space-y-6">
-        <Section title="Akun">
+        <Section title="Account">
           <dl className="grid gap-4 sm:grid-cols-3">
             <Field label="Username" value={user.username} />
             <Field label="Email" value={user.email} />
-            <Field label="Terdaftar" value={formatDate(user.createdAt)} />
+            <Field label="Registered" value={formatDate(user.createdAt)} />
           </dl>
         </Section>
 
         <Section
-          title="Kunci publik"
-          description="Dua key pair terpisah, supaya satu kunci tidak dipakai untuk dua tujuan. Private key tersimpan terenkripsi dan tidak pernah dikirim ke browser."
+          title="Public keys"
+          description="Two separate key pairs, so that one key is never used for two purposes. Private keys are stored encrypted and are never sent to the browser."
         >
-          <div className="grid gap-4 lg:grid-cols-2">
-            <KeyCard title="Encryption key" usage="RSA-OAEP: membungkus kunci AES file" bits={keys?.rsaBits} fingerprint={user.encKeyFingerprint} jwk={keys?.encPublicKey} />
-            <KeyCard title="Signing key" usage="RSA-PSS: digital signature" bits={keys?.rsaBits} fingerprint={user.sigKeyFingerprint} jwk={keys?.sigPublicKey} />
+          <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
+            <KeyDetails title="Encryption key" usage="RSA-OAEP: wraps file AES keys" bits={keys?.rsaBits} fingerprint={user.encKeyFingerprint} jwk={keys?.encPublicKey} />
+            <KeyDetails title="Signing key" usage="RSA-PSS: digital signatures" bits={keys?.rsaBits} fingerprint={user.sigKeyFingerprint} jwk={keys?.sigPublicKey} />
           </div>
         </Section>
 
-        <Section title="Parameter kriptografi server">
+        <Section title="Server cryptographic parameters">
           {!parameters ? (
-            <p className="text-sm text-slate-500">Memuat…</p>
+            <p className="flex items-center gap-2 text-sm text-ink-muted">
+              <LoaderCircle className="size-4 animate-spin" />
+              Loading…
+            </p>
           ) : (
             <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Enkripsi file" value={parameters.algorithms.fileEncryption} />
-              <Field label="Pembungkus kunci" value={parameters.algorithms.keyWrapping} />
+              <Field label="File encryption" value={parameters.algorithms.fileEncryption} />
+              <Field label="Key wrapping" value={parameters.algorithms.keyWrapping} />
               <Field label="Digital signature" value={parameters.algorithms.signature} />
               <Field label="Hash" value={parameters.algorithms.hash} />
-              <Field label="Penurunan kunci dari password" value={`${parameters.algorithms.passwordKdf}, ${parameters.pbkdf2Iterations.toLocaleString('id-ID')} iterasi`} />
-              <Field label="Sesi login" value={parameters.algorithms.session} />
-              <Field label="Modulus RSA" value={`${parameters.rsaBits} bit`} />
-              <Field label="Batas ukuran file" value={formatBytes(parameters.maxFileSize)} />
+              <Field label="Password key derivation" value={`${parameters.algorithms.passwordKdf}, ${formatNumber(parameters.pbkdf2Iterations)} iterations`} />
+              <Field label="Login session" value={parameters.algorithms.session} />
+              <Field label="RSA modulus" value={`${parameters.rsaBits} bits`} />
+              <Field label="File size limit" value={formatBytes(parameters.maxFileSize)} />
             </dl>
           )}
         </Section>
 
         <Section
-          title="Ganti password"
-          description="Private key dibuka dengan password lama lalu dibungkus ulang dengan password baru. File tidak dienkripsi ulang karena key pair-nya tidak berubah."
+          title="Change password"
+          description="Your private keys are unlocked with the old password, then re-wrapped with the new one. Files are not re-encrypted because the key pairs do not change."
         >
           <ChangePasswordForm />
         </Section>
@@ -78,9 +81,9 @@ export function SettingsPage() {
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <section className="card">
-      <div className="border-b border-slate-800 px-5 py-3.5">
-        <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
-        {description && <p className="mt-1 max-w-3xl text-xs text-slate-400">{description}</p>}
+      <div className="groove-b px-5 py-3.5">
+        <h2 className="text-sm font-semibold text-ink">{title}</h2>
+        {description && <p className="mt-1 max-w-[68ch] text-sm text-ink-muted">{description}</p>}
       </div>
       <div className="px-5 py-4">{children}</div>
     </section>
@@ -90,13 +93,13 @@ function Section({ title, description, children }: { title: string; description?
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm break-words text-slate-100">{value}</dd>
+      <dt className="term">{label}</dt>
+      <dd className="mt-0.5 text-sm break-words text-ink">{value}</dd>
     </div>
   );
 }
 
-interface KeyCardProps {
+interface KeyDetailsProps {
   title: string;
   usage: string;
   bits?: number;
@@ -104,26 +107,35 @@ interface KeyCardProps {
   jwk?: PublicJwk;
 }
 
-function KeyCard({ title, usage, bits, fingerprint, jwk }: KeyCardProps) {
+function KeyDetails({ title, usage, bits, fingerprint, jwk }: KeyDetailsProps) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-      <p className="text-sm font-medium text-slate-100">
+    <div className="min-w-0">
+      <h3 className="text-sm font-medium text-ink">
         {title}
-        {bits && <span className="ml-2 font-mono text-xs font-normal text-slate-400">RSA-{bits}</span>}
-      </p>
-      <p className="mt-0.5 text-xs text-slate-500">{usage}</p>
+        {bits && <span className="ml-2 font-mono text-xs font-normal text-ink-muted">RSA-{bits}</span>}
+      </h3>
+      <p className="mt-0.5 text-xs text-ink-muted">{usage}</p>
 
-      <p className="mt-3 text-xs text-slate-500">Fingerprint (SHA-256 dari public key)</p>
-      <p className="hex mt-0.5">{groupHex(fingerprint)}</p>
-
-      {jwk && (
-        <>
-          <p className="mt-3 text-xs text-slate-500">Eksponen publik e (base64url)</p>
-          <p className="hex mt-0.5">{jwk.e}</p>
-          <p className="mt-3 text-xs text-slate-500">Modulus n (base64url)</p>
-          <p className="hex mt-0.5 max-h-24 overflow-y-auto rounded border border-slate-800 p-2">{jwk.n}</p>
-        </>
-      )}
+      <dl className="mt-3 space-y-3">
+        <div>
+          <dt className="term">Fingerprint (SHA-256 of the public key)</dt>
+          <dd className="hex mt-0.5">{groupHex(fingerprint)}</dd>
+        </div>
+        {jwk && (
+          <>
+            <div>
+              <dt className="term">Public exponent e (base64url)</dt>
+              <dd className="hex mt-0.5">{jwk.e}</dd>
+            </div>
+            <div>
+              <dt className="term">Modulus n (base64url)</dt>
+              <dd className="hex well mt-1 max-h-24 overflow-y-auto rounded-lg p-2.5" tabIndex={0}>
+                {jwk.n}
+              </dd>
+            </div>
+          </>
+        )}
+      </dl>
     </div>
   );
 }
@@ -140,15 +152,15 @@ function ChangePasswordForm() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (newPassword !== confirmation) {
-      setError('Konfirmasi password baru tidak sama.');
+      setError('The new password and its confirmation do not match.');
       return;
     }
     setBusy(true);
     setError(null);
     try {
       const { trace } = await api.changePassword(currentPassword, newPassword);
-      inspector.record(trace, 'Akun');
-      toast.success('Password diganti. Private key sudah dibungkus ulang dengan password baru.');
+      inspector.record(trace, 'Account');
+      toast.success('Password changed. Your private keys are now wrapped with the new password.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmation('');
@@ -163,31 +175,33 @@ function ChangePasswordForm() {
     <form onSubmit={handleSubmit} className="max-w-md space-y-4">
       <div>
         <label htmlFor="current-password" className="label">
-          Password saat ini
+          Current password
         </label>
         <input id="current-password" type="password" className="input" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} disabled={busy} />
       </div>
       <div>
         <label htmlFor="new-password" className="label">
-          Password baru
+          New password
         </label>
-        <input id="new-password" type="password" className="input" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} disabled={busy} />
-        <p className="mt-1 text-xs text-slate-500">Minimal 8 karakter.</p>
+        <input id="new-password" type="password" className="input" autoComplete="new-password" aria-describedby="new-password-hint" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} disabled={busy} />
+        <p id="new-password-hint" className="hint">
+          At least 8 characters.
+        </p>
       </div>
       <div>
         <label htmlFor="confirm-password" className="label">
-          Ulangi password baru
+          Repeat new password
         </label>
         <input id="confirm-password" type="password" className="input" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={busy} />
       </div>
       {error && (
-        <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p role="alert" className="alert alert-error">
           {error}
         </p>
       )}
       <button type="submit" className="btn btn-primary" disabled={busy || !currentPassword || newPassword.length < 8 || !confirmation}>
         {busy && <LoaderCircle className="size-4 animate-spin" />}
-        {busy ? 'Membungkus ulang kunci…' : 'Ganti Password'}
+        {busy ? 'Re-wrapping keys…' : 'Change Password'}
       </button>
     </form>
   );

@@ -1,5 +1,5 @@
 import { KeyRound, LoaderCircle } from 'lucide-react';
-import { type FormEvent, type ReactNode, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { errorMessage } from '../services/api';
 import { Modal } from './Modal';
 
@@ -18,6 +18,14 @@ export function PasswordDialog({ title, description, confirmLabel, busyLabel, on
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Setelah gagal, kolom password aktif lagi dan isinya terpilih, siap diketik ulang.
+  useEffect(() => {
+    if (!error) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [error]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -34,43 +42,46 @@ export function PasswordDialog({ title, description, confirmLabel, busyLabel, on
   }
 
   return (
-    <Modal title={title} onClose={busy ? () => {} : onClose}>
+    <Modal title={title} onClose={onClose} busy={busy}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="text-sm text-slate-300">{description}</div>
+        <div className="text-sm text-ink-soft">{description}</div>
 
         <div>
           <label htmlFor="operation-password" className="label">
-            Password akun
+            Account password
           </label>
           <input
+            ref={inputRef}
             id="operation-password"
             type="password"
             autoFocus
             autoComplete="current-password"
             className="input"
+            aria-describedby="operation-password-hint"
+            aria-invalid={error ? true : undefined}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             disabled={busy}
           />
-          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-slate-500">
+          <p id="operation-password-hint" className="hint flex items-start gap-1.5">
             <KeyRound className="mt-0.5 size-3.5 shrink-0" />
-            Password dipakai untuk menurunkan KEK yang membuka private key Anda. Server tidak menyimpannya.
+            Your password is used to derive the KEK that unlocks your private key. The server does not store it.
           </p>
         </div>
 
         {error && (
-          <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+          <p role="alert" className="alert alert-error">
             {error}
           </p>
         )}
 
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
-            Batal
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
+            Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={busy || password.length === 0}>
             {busy && <LoaderCircle className="size-4 animate-spin" />}
-            {busy ? (busyLabel ?? 'Memproses…') : confirmLabel}
+            {busy ? (busyLabel ?? 'Working…') : confirmLabel}
           </button>
         </div>
       </form>

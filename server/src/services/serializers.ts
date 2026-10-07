@@ -39,7 +39,7 @@ export async function serializeFiles(files: FileDocument[], viewer: UserDocument
     ...(file.signature ? [file.signature.signerId] : []),
   ]);
   const usernames = await usernamesById(ids);
-  const nameOf = (id: Types.ObjectId) => usernames.get(id.toString()) ?? '(user dihapus)';
+  const nameOf = (id: Types.ObjectId) => usernames.get(id.toString()) ?? '(deleted user)';
 
   return files.map((file) => {
     const owned = isOwner(file, viewer);

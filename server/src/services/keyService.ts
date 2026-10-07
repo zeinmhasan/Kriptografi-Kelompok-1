@@ -39,10 +39,10 @@ export function deriveKek(password: string, saltHex: string, iterations: number)
 
 export function deriveUserKek(user: UserDocument, password: string, tracer: Tracer): Uint8Array {
   return tracer.step(
-    'Turunkan KEK dari password',
+    'Derive the KEK from the password',
     'PBKDF2-HMAC-SHA256',
     () => deriveKek(password, user.kekSalt, user.kdfIterations),
-    (kek) => ({ iterasi: user.kdfIterations, salt: user.kekSalt, kek: hidden(kek) }),
+    (kek) => ({ iterations: user.kdfIterations, salt: user.kekSalt, kek: hidden(kek) }),
   );
 }
 
@@ -90,9 +90,9 @@ export function unwrapPrivateKey(
 export function openPrivateKey(user: UserDocument, kek: Uint8Array, purpose: KeyPurpose, tracer: Tracer): RsaPrivateKey {
   const wrapped = purpose === 'enc' ? user.encPrivateKey : user.sigPrivateKey;
   return tracer.step(
-    `Buka ${PURPOSE_LABEL[purpose]}`,
+    `Unlock the ${PURPOSE_LABEL[purpose]}`,
     'AES-256-GCM',
     () => unwrapPrivateKey(kek, wrapped, user.id, purpose),
-    () => ({ iv: wrapped.iv, authTag: wrapped.tag, privateKey: 'disembunyikan' }),
+    () => ({ iv: wrapped.iv, authTag: wrapped.tag, privateKey: 'hidden' }),
   );
 }

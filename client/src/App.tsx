@@ -1,3 +1,4 @@
+import { LoaderCircle } from 'lucide-react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -13,7 +14,12 @@ import { VerifyPage } from './pages/VerifyPage';
 function RequireAuth() {
   const { user, loading } = useAuth();
   if (loading) {
-    return <p className="flex min-h-screen items-center justify-center text-sm text-slate-500">Memuat…</p>;
+    return (
+      <p className="flex min-h-dvh items-center justify-center gap-2 text-sm text-ink-muted" role="status">
+        <LoaderCircle className="size-4 animate-spin" />
+        Loading…
+      </p>
+    );
   }
   return user ? <Outlet /> : <Navigate to="/login" replace />;
 }

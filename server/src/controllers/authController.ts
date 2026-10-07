@@ -24,8 +24,8 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
 
 function validatePassword(password: string, label: string): void {
-  if (password.length < MIN_PASSWORD_LENGTH) throw badRequest(`${label} minimal ${MIN_PASSWORD_LENGTH} karakter.`);
-  if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`${label} maksimal ${MAX_PASSWORD_LENGTH} karakter.`);
+  if (password.length < MIN_PASSWORD_LENGTH) throw badRequest(`${label} must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`${label} must be at most ${MAX_PASSWORD_LENGTH} characters.`);
 }
 
 function isDuplicateKeyError(error: unknown): boolean {
@@ -38,16 +38,16 @@ export async function register(req: Request, res: Response): Promise<void> {
   const password = bodyString(req, 'password', 'Password');
 
   if (!USERNAME_PATTERN.test(username)) {
-    throw badRequest('Username harus 3-32 karakter: huruf kecil, angka, atau garis bawah.');
+    throw badRequest('Username must be 3-32 characters: lowercase letters, digits, or underscores.');
   }
-  if (!EMAIL_PATTERN.test(email)) throw badRequest('Format email tidak valid.');
+  if (!EMAIL_PATTERN.test(email)) throw badRequest('That email address is not valid.');
   validatePassword(password, 'Password');
 
   if (await User.exists({ $or: [{ username }, { email }] })) {
-    throw conflict('Username atau email sudah terdaftar.');
+    throw conflict('That username or email is already registered.');
   }
 
-  const tracer = new Tracer('Registrasi');
+  const tracer = new Tracer('Registration');
   const userId = new Types.ObjectId().toString();
 
   // Dua key pair terpisah: satu untuk enkripsi (RSA-OAEP), satu untuk tanda tangan (RSA-PSS).
@@ -57,10 +57,10 @@ export async function register(req: Request, res: Response): Promise<void> {
   ]);
   const encKeyFingerprint = publicKeyFingerprint(encryption.keyPair.publicKey);
   const sigKeyFingerprint = publicKeyFingerprint(signing.keyPair.publicKey);
-  tracer.record('Bangkitkan encryption key pair', `RSA-${config.rsaBits}`, encryption.ms, {
+  tracer.record('Generate the encryption key pair', `RSA-${config.rsaBits}`, encryption.ms, {
     fingerprint: encKeyFingerprint,
   });
-  tracer.record('Bangkitkan signing key pair', `RSA-${config.rsaBits}`, signing.ms, {
+  tracer.record('Generate the signing key pair', `RSA-${config.rsaBits}`, signing.ms, {
     fingerprint: sigKeyFingerprint,
   });
 
@@ -69,26 +69,26 @@ export async function register(req: Request, res: Response): Promise<void> {
   const iterations = config.pbkdf2Iterations;
 
   const passwordHash = tracer.step(
-    'Hash password untuk login',
+    'Hash the password for login',
     'PBKDF2-HMAC-SHA256',
     () => derivePasswordHash(password, authSalt, iterations),
-    () => ({ iterasi: iterations, salt: authSalt }),
+    () => ({ iterations: iterations, salt: authSalt }),
   );
   const kek = tracer.step(
-    'Turunkan KEK dari password',
+    'Derive the KEK from the password',
     'PBKDF2-HMAC-SHA256',
     () => deriveKek(password, kekSalt, iterations),
-    (value) => ({ iterasi: iterations, salt: kekSalt, kek: hidden(value) }),
+    (value) => ({ iterations: iterations, salt: kekSalt, kek: hidden(value) }),
   );
 
   const wrapped = tracer.step(
-    'Bungkus kedua private key dengan KEK',
+    'Wrap both private keys with the KEK',
     'AES-256-GCM',
     () => ({
       enc: wrapPrivateKey(kek, encryption.keyPair.privateKey, userId, 'enc'),
       sig: wrapPrivateKey(kek, signing.keyPair.privateKey, userId, 'sig'),
     }),
-    (value) => ({ ivEncryptionKey: value.enc.iv, ivSigningKey: value.sig.iv }),
+    (value) => ({ encryptionKeyIv: value.enc.iv, signingKeyIv: value.sig.iv }),
   );
 
   let user;
@@ -109,7 +109,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       sigKeyFingerprint,
     });
   } catch (error) {
-    if (isDuplicateKeyError(error)) throw conflict('Username atau email sudah terdaftar.');
+    if (isDuplicateKeyError(error)) throw conflict('That username or email is already registered.');
     throw error;
   }
 
@@ -118,20 +118,20 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
-  const identifier = bodyString(req, 'identifier', 'Username atau email').trim().toLowerCase();
+  const identifier = bodyString(req, 'identifier', 'Username or email').trim().toLowerCase();
   const password = bodyString(req, 'password', 'Password');
-  if (password.length > MAX_PASSWORD_LENGTH) throw unauthorized('Username atau password salah.');
+  if (password.length > MAX_PASSWORD_LENGTH) throw unauthorized('Incorrect username or password.');
 
   const user = await User.findOne({ $or: [{ username: identifier }, { email: identifier }] });
   if (!user) {
     // Tetap menjalankan PBKDF2 supaya lama respons tidak membocorkan apakah user terdaftar.
     derivePasswordHash(password, newSalt(), config.pbkdf2Iterations);
-    throw unauthorized('Username atau password salah.');
+    throw unauthorized('Incorrect username or password.');
   }
 
   const candidate = derivePasswordHash(password, user.authSalt, user.kdfIterations);
   if (!constantTimeEqual(hexToBytes(candidate), hexToBytes(user.passwordHash))) {
-    throw unauthorized('Username atau password salah.');
+    throw unauthorized('Incorrect username or password.');
   }
 
   startSession(res, user);
@@ -151,20 +151,20 @@ export async function me(_req: Request, res: Response): Promise<void> {
 // File tidak perlu dienkripsi ulang karena key pair-nya tidak berubah.
 export async function changePassword(req: Request, res: Response): Promise<void> {
   const user = currentUser(res);
-  const currentPassword = bodyString(req, 'currentPassword', 'Password saat ini');
-  const newPassword = bodyString(req, 'newPassword', 'Password baru');
-  validatePassword(newPassword, 'Password baru');
-  if (newPassword === currentPassword) throw badRequest('Password baru harus berbeda dari password saat ini.');
+  const currentPassword = bodyString(req, 'currentPassword', 'Current password');
+  const newPassword = bodyString(req, 'newPassword', 'New password');
+  validatePassword(newPassword, 'New password');
+  if (newPassword === currentPassword) throw badRequest('The new password must be different from the current one.');
 
-  const tracer = new Tracer('Ganti password');
+  const tracer = new Tracer('Change password');
 
   const oldKek = tracer.step(
-    'Turunkan KEK lama',
+    'Derive the old KEK',
     'PBKDF2-HMAC-SHA256',
     () => deriveKek(currentPassword, user.kekSalt, user.kdfIterations),
-    (value) => ({ iterasi: user.kdfIterations, salt: user.kekSalt, kek: hidden(value) }),
+    (value) => ({ iterations: user.kdfIterations, salt: user.kekSalt, kek: hidden(value) }),
   );
-  const privateKeys = tracer.step('Buka kedua private key dengan KEK lama', 'AES-256-GCM', () => ({
+  const privateKeys = tracer.step('Unlock both private keys with the old KEK', 'AES-256-GCM', () => ({
     enc: unwrapPrivateKey(oldKek, user.encPrivateKey, user.id, 'enc'),
     sig: unwrapPrivateKey(oldKek, user.sigPrivateKey, user.id, 'sig'),
   }));
@@ -174,25 +174,25 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   const iterations = config.pbkdf2Iterations;
 
   const passwordHash = tracer.step(
-    'Hash password baru untuk login',
+    'Hash the new password for login',
     'PBKDF2-HMAC-SHA256',
     () => derivePasswordHash(newPassword, authSalt, iterations),
-    () => ({ iterasi: iterations, salt: authSalt }),
+    () => ({ iterations: iterations, salt: authSalt }),
   );
   const newKek = tracer.step(
-    'Turunkan KEK baru',
+    'Derive the new KEK',
     'PBKDF2-HMAC-SHA256',
     () => deriveKek(newPassword, kekSalt, iterations),
-    (value) => ({ iterasi: iterations, salt: kekSalt, kek: hidden(value) }),
+    (value) => ({ iterations: iterations, salt: kekSalt, kek: hidden(value) }),
   );
   const wrapped = tracer.step(
-    'Bungkus ulang kedua private key dengan KEK baru',
+    'Re-wrap both private keys with the new KEK',
     'AES-256-GCM',
     () => ({
       enc: wrapPrivateKey(newKek, privateKeys.enc, user.id, 'enc'),
       sig: wrapPrivateKey(newKek, privateKeys.sig, user.id, 'sig'),
     }),
-    (value) => ({ ivEncryptionKey: value.enc.iv, ivSigningKey: value.sig.iv }),
+    (value) => ({ encryptionKeyIv: value.enc.iv, signingKeyIv: value.sig.iv }),
   );
 
   user.passwordHash = passwordHash;

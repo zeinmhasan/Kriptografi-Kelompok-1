@@ -12,7 +12,7 @@ export async function tamperTest(req: Request, res: Response): Promise<void> {
   const password = bodyString(req, 'password', 'Password');
   const file = await findAccessibleFile(routeParam(req, 'id'), user);
 
-  const tracer = new Tracer('Simulasi tamper');
+  const tracer = new Tracer('Tamper simulation');
   const experiments = await runTamperExperiments(file, user, password, tracer);
   res.json({ fileName: file.originalName, experiments, trace: tracer.finish() });
 }
@@ -39,7 +39,7 @@ export async function parameters(_req: Request, res: Response): Promise<void> {
     algorithms: {
       fileEncryption: 'AES-256-GCM',
       keyWrapping: 'RSA-OAEP (SHA-256, MGF1-SHA-256)',
-      signature: 'RSA-PSS (SHA-256, MGF1-SHA-256, salt 32 byte)',
+      signature: 'RSA-PSS (SHA-256, MGF1-SHA-256, 32-byte salt)',
       hash: 'SHA-256',
       passwordKdf: 'PBKDF2-HMAC-SHA256',
       session: 'JWT HS256',

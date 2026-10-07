@@ -4,7 +4,7 @@ import { badRequest } from '../errors.ts';
 
 export function bodyString(req: Request, field: string, label: string = field): string {
   const value = (req.body as Record<string, unknown> | undefined)?.[field];
-  if (typeof value !== 'string' || value.length === 0) throw badRequest(`${label} wajib diisi.`);
+  if (typeof value !== 'string' || value.length === 0) throw badRequest(`${label} is required.`);
   return value;
 }
 

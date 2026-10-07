@@ -8,11 +8,11 @@ import { bodyString, routeParam } from './request.ts';
 
 export async function share(req: Request, res: Response): Promise<void> {
   const user = currentUser(res);
-  const username = bodyString(req, 'username', 'Username penerima');
+  const username = bodyString(req, 'username', 'Recipient username');
   const password = bodyString(req, 'password', 'Password');
   const file = await findOwnedFile(routeParam(req, 'id'), user);
 
-  const tracer = new Tracer('Berbagi file');
+  const tracer = new Tracer('Share file');
   await shareFile(file, user, username, password, tracer);
   res.json({ file: await serializeFile(file, user), trace: tracer.finish() });
 }

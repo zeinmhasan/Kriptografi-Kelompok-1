@@ -1,11 +1,28 @@
+import { LoaderCircle } from 'lucide-react';
 import { FileList } from '../components/FileList';
 import { PageHeader } from '../components/Layout';
 import { UploadZone } from '../components/UploadZone';
 import { useFiles, useParameters } from '../hooks/useFiles';
 
-function LoadState({ loading, error }: { loading: boolean; error: string | null }) {
-  if (error) return <p className="card px-6 py-8 text-center text-sm text-rose-300">{error}</p>;
-  if (loading) return <p className="card px-6 py-8 text-center text-sm text-slate-500">Memuat daftar file…</p>;
+function LoadState({ loading, error, onRetry }: { loading: boolean; error: string | null; onRetry: () => void }) {
+  if (error) {
+    return (
+      <div role="alert" className="alert alert-error items-center justify-between">
+        <span>{error}</span>
+        <button type="button" className="btn" onClick={onRetry}>
+          Try Again
+        </button>
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <p className="card flex items-center justify-center gap-2 px-6 py-10 text-sm text-ink-muted">
+        <LoaderCircle className="size-4 animate-spin" />
+        Loading files…
+      </p>
+    );
+  }
   return null;
 }
 
@@ -15,15 +32,12 @@ export function MyFilesPage() {
 
   return (
     <>
-      <PageHeader
-        title="My Files"
-        description="Klik sebuah file untuk melihat metadata kriptografinya dan aksi yang tersedia."
-      />
+      <PageHeader title="My Files" description="Select a file to see its cryptographic metadata and the actions available." />
       <UploadZone maxFileSize={parameters?.maxFileSize} onUploaded={reload} />
       <div className="mt-6">
-        <LoadState loading={!listing} error={error} />
+        <LoadState loading={!listing} error={error} onRetry={reload} />
         {listing && !error && (
-          <FileList files={listing.owned} onChanged={reload} emptyMessage="Belum ada file. Upload file untuk mengenkripsi dan menyimpannya." />
+          <FileList files={listing.owned} onChanged={reload} emptyMessage="No files yet. Upload a file to encrypt and store it." />
         )}
       </div>
     </>
@@ -37,12 +51,10 @@ export function SharedPage() {
     <>
       <PageHeader
         title="Shared"
-        description="File milik user lain yang kunci AES-nya dibungkus dengan public key Anda. Anda bisa mendekripsi dan memverifikasi signature-nya dengan kunci Anda sendiri."
+        description="Files owned by other users whose AES key is wrapped with your public key. You can decrypt them and verify their signatures with your own keys."
       />
-      <LoadState loading={!listing} error={error} />
-      {listing && !error && (
-        <FileList files={listing.shared} onChanged={reload} emptyMessage="Belum ada file yang dibagikan kepada Anda." />
-      )}
+      <LoadState loading={!listing} error={error} onRetry={reload} />
+      {listing && !error && <FileList files={listing.shared} onChanged={reload} emptyMessage="No files have been shared with you yet." />}
     </>
   );
 }

@@ -41,7 +41,7 @@ function flipRandomBit(bytes: Uint8Array, name: string): BitFlip {
   bytes[position] ^= mask;
   const hex = (value: number) => `0x${value.toString(16).padStart(2, '0')}`;
   return {
-    description: `${name} byte ke-${position}: ${hex(before)} menjadi ${hex(bytes[position])}`,
+    description: `${name} byte ${position}: ${hex(before)} changed to ${hex(bytes[position])}`,
     restore: () => {
       bytes[position] = before;
     },
@@ -99,24 +99,24 @@ export async function runTamperExperiments(
   const tryDecrypt = () => attempt(() => (gcmDecrypt(fileKey, iv, ciphertext, tag, aad), true), GcmAuthenticationError);
 
   experiments.push(
-    experiment('Kontrol: data tidak diubah', 'Tidak ada', 'diterima', 'Tag GCM cocok', attempt(decryptOk, GcmAuthenticationError)),
+    experiment('Control: unmodified data', 'None', 'diterima', 'GCM tag matches', attempt(decryptOk, GcmAuthenticationError)),
   );
 
   if (ciphertext.length > 0) {
     const flip = flipRandomBit(ciphertext, 'Ciphertext');
-    experiments.push(experiment('Satu bit ciphertext dibalik', flip.description, 'ditolak', 'Tag GCM', tryDecrypt()));
+    experiments.push(experiment('One ciphertext bit flipped', flip.description, 'ditolak', 'GCM tag', tryDecrypt()));
     flip.restore();
   }
 
   {
     const flip = flipRandomBit(tag, 'Auth tag');
-    experiments.push(experiment('Satu bit auth tag dibalik', flip.description, 'ditolak', 'Tag GCM', tryDecrypt()));
+    experiments.push(experiment('One auth tag bit flipped', flip.description, 'ditolak', 'GCM tag', tryDecrypt()));
     flip.restore();
   }
 
   {
     const flip = flipRandomBit(iv, 'IV');
-    experiments.push(experiment('Satu bit IV dibalik', flip.description, 'ditolak', 'Tag GCM', tryDecrypt()));
+    experiments.push(experiment('One IV bit flipped', flip.description, 'ditolak', 'GCM tag', tryDecrypt()));
     flip.restore();
   }
 
@@ -125,10 +125,10 @@ export async function runTamperExperiments(
     const forgedAad = fileAadText(file.id, otherOwner);
     experiments.push(
       experiment(
-        'Ciphertext diklaim milik user lain',
-        `AAD diganti menjadi ${forgedAad}`,
+        'Ciphertext claimed by another user',
+        `AAD replaced with ${forgedAad}`,
         'ditolak',
-        'AAD pada tag GCM',
+        'AAD bound into the GCM tag',
         attempt(() => (gcmDecrypt(fileKey, iv, ciphertext, tag, utf8ToBytes(forgedAad)), true), GcmAuthenticationError),
       ),
     );
@@ -139,10 +139,10 @@ export async function runTamperExperiments(
     const flip = flipRandomBit(wrapped, 'Wrapped key');
     experiments.push(
       experiment(
-        'Satu bit kunci AES terbungkus dibalik',
+        'One wrapped AES key bit flipped',
         flip.description,
         'ditolak',
-        'Padding RSA-OAEP',
+        'RSA-OAEP padding',
         attempt(() => (oaepDecrypt(privateKey, wrapped), true), OaepDecryptionError),
       ),
     );
@@ -155,16 +155,16 @@ export async function runTamperExperiments(
     const signature = base64urlDecode(stored.value);
     const verify = () => attempt(() => pssVerifyDigest(publicKey, sha256(plaintext), signature));
 
-    experiments.push(experiment('Kontrol: signature atas file asli', 'Tidak ada', 'diterima', 'Signature RSA-PSS cocok', verify()));
+    experiments.push(experiment('Control: signature over the original file', 'None', 'diterima', 'RSA-PSS signature matches', verify()));
 
     if (plaintext.length > 0) {
-      const flip = flipRandomBit(plaintext, 'Isi file');
-      experiments.push(experiment('Satu bit isi file dibalik', flip.description, 'ditolak', 'Signature RSA-PSS', verify()));
+      const flip = flipRandomBit(plaintext, 'File contents');
+      experiments.push(experiment('One file content bit flipped', flip.description, 'ditolak', 'RSA-PSS signature', verify()));
       flip.restore();
     }
 
     const flip = flipRandomBit(signature, 'Signature');
-    experiments.push(experiment('Satu bit signature dibalik', flip.description, 'ditolak', 'Signature RSA-PSS', verify()));
+    experiments.push(experiment('One signature bit flipped', flip.description, 'ditolak', 'RSA-PSS signature', verify()));
     flip.restore();
   }
 

@@ -39,12 +39,12 @@ async function request(method: string, path: string, body?: unknown): Promise<Re
   try {
     response = await fetch(`/api${path}`, init);
   } catch {
-    throw new ApiError(0, 'NETWORK', 'Server tidak bisa dihubungi. Pastikan server Crypta berjalan.');
+    throw new ApiError(0, 'NETWORK', 'Cannot reach the server. Make sure the Crypta server is running.');
   }
   if (response.ok) return response;
 
   let code = 'UNKNOWN';
-  let message = `Permintaan gagal (${response.status}).`;
+  let message = `Request failed (${response.status}).`;
   try {
     const data = await response.json();
     if (data?.error?.message) {
@@ -120,5 +120,5 @@ export const api = {
 };
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Terjadi kesalahan yang tidak diketahui.';
+  return error instanceof Error ? error.message : 'An unknown error occurred.';
 }

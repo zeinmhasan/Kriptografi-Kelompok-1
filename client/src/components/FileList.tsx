@@ -3,11 +3,13 @@ import {
   Download,
   FileDown,
   FileText,
+  LoaderCircle,
   Lock,
   LockOpen,
   PenLine,
   Share2,
   ShieldCheck,
+  Stamp,
   Trash2,
   Users,
   Zap,
@@ -20,6 +22,7 @@ import { api, errorMessage } from '../services/api';
 import type { FileItem, TamperReport, VerificationResult } from '../types';
 import { Modal } from './Modal';
 import { PasswordDialog } from './PasswordDialog';
+import { Seal } from './Seal';
 import { ShareDialog } from './ShareDialog';
 import { TamperTable } from './TamperTable';
 import { VerificationCard } from './VerificationCard';
@@ -37,6 +40,7 @@ export function FileList({ files, onChanged, emptyMessage }: FileListProps) {
   const [passwordAction, setPasswordAction] = useState<{ kind: PasswordAction; file: FileItem } | null>(null);
   const [sharing, setSharing] = useState<FileItem | null>(null);
   const [deleting, setDeleting] = useState<FileItem | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [verification, setVerification] = useState<{ file: FileItem; result: VerificationResult } | null>(null);
   const [tamperReport, setTamperReport] = useState<TamperReport | null>(null);
   const inspector = useInspector();
@@ -50,11 +54,11 @@ export function FileList({ files, onChanged, emptyMessage }: FileListProps) {
       const { blob, trace } = await api.decrypt(file.id, password);
       saveBlob(new Blob([blob], { type: file.mimeType }), file.originalName);
       inspector.record(trace, file.originalName);
-      toast.success(`"${file.originalName}" didekripsi dan diunduh.`);
+      toast.success(`"${file.originalName}" decrypted and downloaded.`);
     } else if (kind === 'sign') {
       const { trace } = await api.sign(file.id, password);
       inspector.record(trace, file.originalName);
-      toast.success(`"${file.originalName}" ditandatangani.`);
+      toast.success(`"${file.originalName}" signed.`);
       onChanged();
     } else if (kind === 'verify') {
       const { result, trace } = await api.verify(file.id, password);
@@ -77,19 +81,22 @@ export function FileList({ files, onChanged, emptyMessage }: FileListProps) {
   }
 
   async function confirmDelete() {
-    if (!deleting) return;
+    if (!deleting || deleteBusy) return;
+    setDeleteBusy(true);
     try {
       const { removed } = await api.deleteFile(deleting.id);
-      toast.success(removed === 'file' ? `"${deleting.originalName}" dihapus.` : `Akses ke "${deleting.originalName}" dilepas.`);
+      toast.success(removed === 'file' ? `"${deleting.originalName}" deleted.` : `Access to "${deleting.originalName}" removed.`);
       setDeleting(null);
       onChanged();
     } catch (error) {
       toast.error(errorMessage(error));
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
   if (files.length === 0) {
-    return <p className="card px-6 py-10 text-center text-sm text-slate-400">{emptyMessage}</p>;
+    return <p className="well px-6 py-10 text-center text-sm text-ink-muted">{emptyMessage}</p>;
   }
 
   const sharingFile = sharing ? (files.find((file) => file.id === sharing.id) ?? sharing) : null;
@@ -99,20 +106,22 @@ export function FileList({ files, onChanged, emptyMessage }: FileListProps) {
       <ul className="space-y-2">
         {files.map((file) => {
           const expanded = expandedId === file.id;
+          const detailsId = `file-details-${file.id}`;
           return (
             <li key={file.id} className="card overflow-hidden">
               <button
                 type="button"
-                className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-slate-800/40"
+                className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-well/60 focus-visible:-outline-offset-2"
                 aria-expanded={expanded}
+                aria-controls={detailsId}
                 onClick={() => setExpandedId(expanded ? null : file.id)}
               >
-                <FileText className="size-5 shrink-0 text-slate-400" />
+                <FileText className="size-5 shrink-0 text-ink-muted" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-100">{file.originalName}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">
+                  <p className="truncate text-sm font-medium text-ink">{file.originalName}</p>
+                  <p className="mt-0.5 text-xs text-ink-muted">
                     {formatBytes(file.size)} · {formatDate(file.createdAt)}
-                    {!file.isOwner && ` · milik ${file.owner.username}`}
+                    {!file.isOwner && ` · owned by ${file.owner.username}`}
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5 sm:hidden">
                     <Badges file={file} />
@@ -121,65 +130,78 @@ export function FileList({ files, onChanged, emptyMessage }: FileListProps) {
                 <div className="hidden flex-wrap justify-end gap-1.5 sm:flex">
                   <Badges file={file} />
                 </div>
-                <ChevronDown className={`size-4 shrink-0 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`size-4 shrink-0 text-ink-muted transition-transform ${expanded ? 'rotate-180' : ''}`} />
               </button>
 
               {expanded && (
-                <div className="border-t border-slate-800 px-4 py-4">
+                <div id={detailsId} className="groove-t px-4 py-4">
                   <div className="flex flex-wrap gap-2">
                     <ActionButton primary icon={<LockOpen className="size-4" />} onClick={() => setPasswordAction({ kind: 'decrypt', file })}>
-                      Dekripsi &amp; Unduh
+                      Decrypt &amp; Download
                     </ActionButton>
                     <ActionButton icon={<Download className="size-4" />} onClick={() => void download(file, 'encrypted')}>
-                      Unduh .enc
+                      Download .enc
                     </ActionButton>
                     {file.isOwner && (
                       <ActionButton icon={<PenLine className="size-4" />} onClick={() => setPasswordAction({ kind: 'sign', file })}>
-                        {file.signature ? 'Tanda Tangani Ulang' : 'Tanda Tangani'}
+                        {file.signature ? 'Re-sign' : 'Sign'}
                       </ActionButton>
                     )}
                     {file.signature && (
                       <>
                         <ActionButton icon={<ShieldCheck className="size-4" />} onClick={() => setPasswordAction({ kind: 'verify', file })}>
-                          Verifikasi
+                          Verify
                         </ActionButton>
                         <ActionButton icon={<FileDown className="size-4" />} onClick={() => void download(file, 'signature')}>
-                          Ekspor .sig
+                          Export .sig
                         </ActionButton>
                       </>
                     )}
                     {file.isOwner && (
                       <ActionButton icon={<Share2 className="size-4" />} onClick={() => setSharing(file)}>
-                        Bagikan
+                        Share
                       </ActionButton>
                     )}
                     <ActionButton icon={<Zap className="size-4" />} onClick={() => setPasswordAction({ kind: 'tamper', file })}>
-                      Uji Tamper
+                      Tamper Test
                     </ActionButton>
-                    <button type="button" className="btn btn-danger" onClick={() => setDeleting(file)}>
+                    {/* Aksi yang merusak dipisah ke ujung kanan, jauh dari aksi sehari-hari. */}
+                    <button type="button" className="btn btn-danger max-sm:mt-4 sm:ml-auto" onClick={() => setDeleting(file)}>
                       <Trash2 className="size-4" />
-                      {file.isOwner ? 'Hapus' : 'Lepas Akses'}
+                      {file.isOwner ? 'Delete' : 'Remove Access'}
                     </button>
                   </div>
 
-                  <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-                    <Detail label="Enkripsi isi file" value={file.encryption.algorithm} />
-                    <Detail label="Pembungkus kunci AES" value={file.encryption.keyAlgorithm} />
-                    <Detail label="IV (96 bit)" value={file.encryption.iv} hex />
-                    <Detail label="Auth tag (128 bit)" value={file.encryption.authTag} hex />
-                    <Detail label="SHA-256 isi file asli" value={groupHex(file.plaintextHash, 8)} hex wide />
-                    <Detail label="Nama di storage" value={file.encryption.storedName} hex wide />
+                  <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-start">
+                  <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                    <Detail label="File content encryption" value={file.encryption.algorithm} />
+                    <Detail label="AES key wrapping" value={file.encryption.keyAlgorithm} />
+                    <Detail label="IV (96 bits)" value={file.encryption.iv} hex />
+                    <Detail label="Auth tag (128 bits)" value={file.encryption.authTag} hex />
+                    <Detail label="SHA-256 of the original file" value={groupHex(file.plaintextHash, 8)} hex wide />
+                    <Detail label="Name in storage" value={file.encryption.storedName} hex wide />
                     {file.signature && (
                       <>
-                        <Detail label="Ditandatangani oleh" value={`${file.signature.signer} · ${formatDate(file.signature.signedAt)}`} />
-                        <Detail label="Algoritma signature" value={file.signature.algorithm} />
-                        <Detail label="Fingerprint signing key" value={groupHex(file.signature.keyFingerprint)} hex wide />
+                        <Detail label="Signed by" value={`${file.signature.signer} · ${formatDate(file.signature.signedAt)}`} />
+                        <Detail label="Signature algorithm" value={file.signature.algorithm} />
+                        <Detail label="Signing key fingerprint" value={groupHex(file.signature.keyFingerprint)} hex wide />
                       </>
                     )}
                     {file.sharedWith.length > 0 && (
-                      <Detail label="Dibagikan ke" value={file.sharedWith.map((recipient) => recipient.username).join(', ')} wide />
+                      <Detail label="Shared with" value={file.sharedWith.map((recipient) => recipient.username).join(', ')} wide />
                     )}
                   </dl>
+                  {/* File bertanda tangan membawa cap timbul penanda tangannya. */}
+                  {file.signature && (
+                    <Seal
+                      signer={file.signature.signer}
+                      keyFingerprint={file.signature.keyFingerprint}
+                      signedAt={file.signature.signedAt}
+                      state="embossed"
+                      className="size-32 self-center sm:size-36 sm:self-start"
+                    />
+                  )}
+                  </div>
                 </div>
               )}
             </li>
@@ -200,32 +222,32 @@ export function FileList({ files, onChanged, emptyMessage }: FileListProps) {
       {sharingFile && <ShareDialog file={sharingFile} onChanged={onChanged} onClose={() => setSharing(null)} />}
 
       {deleting && (
-        <Modal title={deleting.isOwner ? 'Hapus file' : 'Lepas akses'} onClose={() => setDeleting(null)}>
-          <p className="text-sm text-slate-300">
+        <Modal title={deleting.isOwner ? 'Delete file' : 'Remove access'} onClose={() => setDeleting(null)} busy={deleteBusy}>
+          <p className="text-sm text-ink-soft">
             {deleting.isOwner
-              ? `File terenkripsi "${deleting.originalName}" dan seluruh kuncinya akan dihapus permanen, termasuk untuk penerima share.`
-              : `"${deleting.originalName}" akan hilang dari daftar Anda. File tetap ada untuk pemiliknya.`}
+              ? `The encrypted file "${deleting.originalName}" and all of its keys will be permanently deleted, including for everyone it is shared with.`
+              : `"${deleting.originalName}" will disappear from your list. The file stays available to its owner.`}
           </p>
           <div className="mt-5 flex justify-end gap-2">
-            <button type="button" className="btn btn-secondary" onClick={() => setDeleting(null)}>
-              Batal
+            <button type="button" className="btn" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+              Cancel
             </button>
-            <button type="button" className="btn btn-danger" onClick={() => void confirmDelete()}>
-              <Trash2 className="size-4" />
-              {deleting.isOwner ? 'Hapus Permanen' : 'Lepas Akses'}
+            <button type="button" className="btn btn-danger" onClick={() => void confirmDelete()} disabled={deleteBusy}>
+              {deleteBusy ? <LoaderCircle className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {deleting.isOwner ? 'Delete Permanently' : 'Remove Access'}
             </button>
           </div>
         </Modal>
       )}
 
       {verification && (
-        <Modal title={`Verifikasi "${verification.file.originalName}"`} onClose={() => setVerification(null)} size="lg">
+        <Modal title={`Verification of "${verification.file.originalName}"`} onClose={() => setVerification(null)} size="lg">
           <VerificationCard result={verification.result} />
         </Modal>
       )}
 
       {tamperReport && (
-        <Modal title={`Simulasi tamper "${tamperReport.fileName}"`} onClose={() => setTamperReport(null)} size="xl">
+        <Modal title={`Tamper simulation for "${tamperReport.fileName}"`} onClose={() => setTamperReport(null)} size="xl">
           <TamperTable experiments={tamperReport.experiments} />
         </Modal>
       )}
@@ -235,50 +257,49 @@ export function FileList({ files, onChanged, emptyMessage }: FileListProps) {
 
 const PASSWORD_DIALOG: Record<PasswordAction, { title: string; description: string; confirmLabel: string; busyLabel: string }> = {
   decrypt: {
-    title: 'Dekripsi',
+    title: 'Decrypt',
     description:
-      'Private encryption key Anda dibuka, dipakai untuk membuka kunci AES file dengan RSA-OAEP, lalu isi file didekripsi dengan AES-256-GCM.',
-    confirmLabel: 'Dekripsi & Unduh',
-    busyLabel: 'Mendekripsi…',
+      "Your private encryption key is unlocked and used to unwrap the file's AES key with RSA-OAEP, then the file contents are decrypted with AES-256-GCM.",
+    confirmLabel: 'Decrypt & Download',
+    busyLabel: 'Decrypting…',
   },
   sign: {
-    title: 'Tanda tangani',
-    description:
-      'File didekripsi, di-hash dengan SHA-256, lalu hash-nya ditandatangani dengan private signing key Anda memakai RSA-PSS.',
-    confirmLabel: 'Tanda Tangani',
-    busyLabel: 'Menandatangani…',
+    title: 'Sign',
+    description: 'The file is decrypted and hashed with SHA-256, then the hash is signed with your private signing key using RSA-PSS.',
+    confirmLabel: 'Sign',
+    busyLabel: 'Signing…',
   },
   verify: {
-    title: 'Verifikasi',
+    title: 'Verify',
     description:
-      'File didekripsi dan di-hash ulang, lalu signature diperiksa dengan public key penanda tangan. Password hanya dibutuhkan untuk mendekripsi file.',
-    confirmLabel: 'Verifikasi',
-    busyLabel: 'Memverifikasi…',
+      "The file is decrypted and hashed again, then the signature is checked against the signer's public key. Your password is only needed to decrypt the file.",
+    confirmLabel: 'Verify',
+    busyLabel: 'Verifying…',
   },
   tamper: {
-    title: 'Uji tamper',
+    title: 'Tamper test',
     description:
-      'Satu bit pada ciphertext, tag, IV, kunci terbungkus, dan signature diubah bergantian pada salinan di memori untuk menunjukkan bahwa setiap perubahan terdeteksi.',
-    confirmLabel: 'Jalankan Simulasi',
-    busyLabel: 'Menjalankan…',
+      'One bit of the ciphertext, tag, IV, wrapped key, and signature is flipped in turn on an in-memory copy, to show that every change is detected.',
+    confirmLabel: 'Run Simulation',
+    busyLabel: 'Running…',
   },
 };
 
 function Badges({ file }: { file: FileItem }) {
   return (
     <>
-      <span className="badge bg-emerald-500/15 text-emerald-300">
+      <span className="badge text-seal">
         <Lock className="size-3" />
         Encrypted
       </span>
       {file.signature && (
-        <span className="badge bg-sky-500/15 text-sky-300">
-          <PenLine className="size-3" />
+        <span className="badge text-stamp">
+          <Stamp className="size-3" />
           Signed
         </span>
       )}
       {file.sharedWith.length > 0 && (
-        <span className="badge bg-violet-500/15 text-violet-300">
+        <span className="badge text-share">
           <Users className="size-3" />
           Shared {file.sharedWith.length}
         </span>
@@ -289,7 +310,7 @@ function Badges({ file }: { file: FileItem }) {
 
 function ActionButton({ icon, children, onClick, primary }: { icon: ReactNode; children: ReactNode; onClick: () => void; primary?: boolean }) {
   return (
-    <button type="button" className={`btn ${primary ? 'btn-primary' : 'btn-secondary'}`} onClick={onClick}>
+    <button type="button" className={primary ? 'btn btn-primary' : 'btn'} onClick={onClick}>
       {icon}
       {children}
     </button>
@@ -299,8 +320,8 @@ function ActionButton({ icon, children, onClick, primary }: { icon: ReactNode; c
 function Detail({ label, value, hex, wide }: { label: string; value: string; hex?: boolean; wide?: boolean }) {
   return (
     <div className={wide ? 'sm:col-span-2' : ''}>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className={hex ? 'hex mt-0.5' : 'mt-0.5 text-sm break-words text-slate-200'}>{value}</dd>
+      <dt className="term">{label}</dt>
+      <dd className={hex ? 'hex mt-0.5' : 'mt-0.5 text-sm break-words text-ink'}>{value}</dd>
     </div>
   );
 }

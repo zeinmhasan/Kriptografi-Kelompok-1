@@ -1,58 +1,72 @@
 import { Activity, X } from 'lucide-react';
+import { useEffect } from 'react';
 import { useInspector } from '../hooks/useInspector';
+import { formatTime } from '../lib/format';
 import { TraceView } from './TraceView';
 
-const timeFormat = new Intl.DateTimeFormat('id-ID', { timeStyle: 'medium' });
-
 // Crypto Inspector: panel samping yang menampilkan langkah kriptografi dari operasi terakhir.
+// Di layar lebar panel ini berdampingan dengan halaman, di lembar yang sama dan dipisah alur;
+// di layar sempit ia terangkat dan menutupi halaman.
 export function InspectorDrawer() {
   const { records, selectedId, select, isOpen, setOpen, autoOpen, setAutoOpen, clear } = useInspector();
+
+  // Escape menutup panel, kecuali saat sebuah dialog terbuka: dialog itu yang ditutup lebih dulu.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('[role="dialog"]')) setOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, setOpen]);
+
   if (!isOpen) return null;
 
   const selected = records.find((record) => record.id === selectedId) ?? records[0];
 
   return (
     <aside
+      id="crypto-inspector"
       aria-label="Crypto Inspector"
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-slate-800 bg-slate-900 shadow-2xl shadow-black/60"
+      className="animate-slide-in fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col bg-ground shadow-float xl:sticky xl:top-0 xl:h-dvh xl:w-[26rem] xl:shrink-0 xl:border-l xl:border-line xl:shadow-[inset_1px_0_0_var(--relief-light)]"
     >
-      <header className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+      <header className="groove-b flex h-16 shrink-0 items-center justify-between gap-3 pr-3 pl-4">
         <div className="flex items-center gap-2">
-          <Activity className="size-4 text-emerald-400" />
-          <h2 className="text-sm font-semibold text-slate-100">Crypto Inspector</h2>
+          <Activity className="size-4 text-stamp" />
+          <h2 className="text-sm font-semibold text-ink">Crypto Inspector</h2>
         </div>
-        <button type="button" onClick={() => setOpen(false)} className="cursor-pointer rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100" aria-label="Tutup Inspector">
+        <button type="button" onClick={() => setOpen(false)} className="icon-btn" aria-label="Close Inspector">
           <X className="size-5" />
         </button>
       </header>
 
-      <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-2.5">
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
-          <input type="checkbox" className="accent-emerald-500" checked={autoOpen} onChange={(event) => setAutoOpen(event.target.checked)} />
-          Buka otomatis setelah operasi
+      <div className="groove-b flex items-center justify-between gap-3 px-4 py-2.5">
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-soft">
+          <input type="checkbox" checked={autoOpen} onChange={(event) => setAutoOpen(event.target.checked)} />
+          Open automatically after each operation
         </label>
         {records.length > 0 && (
-          <button type="button" onClick={clear} className="cursor-pointer text-xs text-slate-400 hover:text-slate-200">
-            Hapus riwayat
+          <button type="button" onClick={clear} className="cursor-pointer rounded text-xs whitespace-nowrap text-ink-muted hover:text-ink">
+            Clear history
           </button>
         )}
       </div>
 
       {!selected ? (
-        <p className="px-4 py-8 text-center text-sm text-slate-500">
-          Belum ada operasi. Upload, dekripsi, tanda tangani, atau bagikan file untuk melihat langkah kriptografinya di sini.
+        <p className="px-6 py-10 text-center text-sm text-ink-muted">
+          No operations yet. Upload, decrypt, sign, or share a file to see its cryptographic steps here.
         </p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           {records.length > 1 && (
-            <div className="border-b border-slate-800 px-4 py-3">
-              <label htmlFor="inspector-history" className="mb-1 block text-xs text-slate-500">
-                Riwayat sesi ini
+            <div className="groove-b px-4 py-3">
+              <label htmlFor="inspector-history" className="term mb-1.5 block">
+                History for this session
               </label>
-              <select id="inspector-history" className="input" value={selected.id} onChange={(event) => select(Number(event.target.value))}>
+              <select id="inspector-history" className="input appearance-none pr-9" value={selected.id} onChange={(event) => select(Number(event.target.value))}>
                 {records.map((record) => (
                   <option key={record.id} value={record.id}>
-                    {timeFormat.format(record.at)} · {record.trace.operation}
+                    {formatTime(record.at)} · {record.trace.operation}
                     {record.subject ? ` · ${record.subject}` : ''}
                   </option>
                 ))}
@@ -60,8 +74,7 @@ export function InspectorDrawer() {
             </div>
           )}
           <div className="px-4 py-4">
-            {selected.subject && <p className="mb-3 truncate text-xs text-slate-400">{selected.subject}</p>}
-            <TraceView trace={selected.trace} />
+            <TraceView key={selected.id} trace={selected.trace} />
           </div>
         </div>
       )}

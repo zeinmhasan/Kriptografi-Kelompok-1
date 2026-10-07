@@ -31,9 +31,9 @@ export async function listFiles(_req: Request, res: Response): Promise<void> {
 // Upload tidak butuh password: enkripsi hanya memakai public key pemilik.
 export async function uploadFile(req: Request, res: Response): Promise<void> {
   const user = currentUser(res);
-  if (!req.file) throw badRequest('Tidak ada file yang diunggah.');
+  if (!req.file) throw badRequest('No file was uploaded.');
 
-  const tracer = new Tracer('Upload dan enkripsi');
+  const tracer = new Tracer('Upload and encrypt');
   const file = await storeEncryptedFile(
     user,
     {
@@ -70,7 +70,7 @@ export async function decryptFile(req: Request, res: Response): Promise<void> {
   const password = bodyString(req, 'password', 'Password');
   const file = await findAccessibleFile(routeParam(req, 'id'), user);
 
-  const tracer = new Tracer('Dekripsi dan unduh');
+  const tracer = new Tracer('Decrypt and download');
   const kek = deriveUserKek(user, password, tracer);
   const privateKey = openPrivateKey(user, kek, 'enc', tracer);
   const plaintext = await decryptStoredFile(file, user, privateKey, tracer);
@@ -79,7 +79,7 @@ export async function decryptFile(req: Request, res: Response): Promise<void> {
   // sebagai pemeriksaan kedua yang terlihat di Crypto Inspector.
   const hash = bytesToHex(hashPlaintext(plaintext, tracer));
   if (hash !== file.plaintextHash) {
-    throw new HttpError(422, 'INTEGRITY_FAILED', 'Hash hasil dekripsi tidak cocok dengan hash saat upload.');
+    throw new HttpError(422, 'INTEGRITY_FAILED', 'The hash of the decrypted file does not match the hash recorded at upload.');
   }
 
   // Isi file dikirim sebagai biner, jadi jejak langkah dititipkan di header.

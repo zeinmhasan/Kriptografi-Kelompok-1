@@ -45,24 +45,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 left-4 z-[60] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2" aria-live="polite">
+      <div className="pointer-events-none fixed bottom-4 left-4 z-[60] md:left-[15rem] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2" aria-live="polite">
         {toasts.map((toast) => (
           <div
             key={toast.id}
             role={toast.kind === 'error' ? 'alert' : 'status'}
-            className={`pointer-events-auto flex items-start gap-3 rounded-lg border px-3.5 py-3 text-sm shadow-lg shadow-black/40 ${
-              toast.kind === 'error'
-                ? 'border-rose-500/40 bg-rose-950 text-rose-100'
-                : 'border-emerald-500/40 bg-emerald-950 text-emerald-100'
-            }`}
+            className="animate-rise pointer-events-auto flex items-start gap-3 rounded-xl bg-ground py-2.5 pr-2 pl-3.5 text-sm text-ink shadow-float"
           >
             {toast.kind === 'error' ? (
-              <CircleAlert className="mt-0.5 size-4 shrink-0 text-rose-400" />
+              <CircleAlert className="mt-1 size-4 shrink-0 text-alert" />
             ) : (
-              <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-400" />
+              <CircleCheck className="mt-1 size-4 shrink-0 text-seal" />
             )}
-            <p className="min-w-0 flex-1 break-words">{toast.message}</p>
-            <button type="button" onClick={() => dismiss(toast.id)} className="cursor-pointer opacity-70 hover:opacity-100" aria-label="Tutup notifikasi">
+            <p className="min-w-0 flex-1 py-0.5 break-words">{toast.message}</p>
+            <button type="button" onClick={() => dismiss(toast.id)} className="icon-btn size-7" aria-label="Dismiss notification">
               <X className="size-4" />
             </button>
           </div>

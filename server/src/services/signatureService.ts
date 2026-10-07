@@ -8,7 +8,7 @@ import type { FileDocument } from '../models/StoredFile.ts';
 import { User, type UserDocument } from '../models/User.ts';
 import { decryptStoredFile, hashPlaintext } from './fileService.ts';
 import { deriveUserKek, openPrivateKey } from './keyService.ts';
-import { type Tracer, preview } from './trace.ts';
+import { type Tracer, byteCount, preview } from './trace.ts';
 
 export const SIGNATURE_FORMAT = 'crypta-signature-v1';
 export const SIGNATURE_ALGORITHM = 'RSA-PSS-SHA256';
@@ -35,8 +35,8 @@ export interface VerificationResult {
   fileHash: string;
 }
 
-const REASON_VALID = 'Signature valid. File tidak berubah sejak ditandatangani.';
-const REASON_INVALID = 'Signature tidak valid. File telah berubah, atau signature ini bukan untuk file tersebut.';
+const REASON_VALID = 'The file has not changed since it was signed.';
+const REASON_INVALID = 'The file has changed, or this signature belongs to a different file.';
 
 export async function signFile(file: FileDocument, owner: UserDocument, password: string, tracer: Tracer): Promise<void> {
   const kek = deriveUserKek(owner, password, tracer);
@@ -47,10 +47,10 @@ export async function signFile(file: FileDocument, owner: UserDocument, password
   const hash = hashPlaintext(plaintext, tracer);
 
   const signature = tracer.step(
-    'Tanda tangani hash dengan private signing key',
+    'Sign the hash with the private signing key',
     'RSA-PSS',
     () => pssSignDigest(signingKey, hash),
-    (value) => ({ fingerprintKunci: owner.sigKeyFingerprint, panjangSalt: '32 byte', signature: preview(value, 16) }),
+    (value) => ({ keyFingerprint: owner.sigKeyFingerprint, saltLength: '32 bytes', signature: preview(value, 16) }),
   );
 
   file.signature = {
@@ -69,7 +69,7 @@ export async function verifyStoredFile(
   tracer: Tracer,
 ): Promise<VerificationResult> {
   const stored = file.signature;
-  if (!stored) throw badRequest('File ini belum ditandatangani.');
+  if (!stored) throw badRequest('This file has not been signed yet.');
 
   const kek = deriveUserKek(user, password, tracer);
   const encryptionKey = openPrivateKey(user, kek, 'enc', tracer);
@@ -77,13 +77,13 @@ export async function verifyStoredFile(
   const hash = hashPlaintext(plaintext, tracer);
 
   const signer = await User.findById(stored.signerId);
-  if (!signer) throw notFound('Penanda tangan tidak ditemukan.');
+  if (!signer) throw notFound('Signer not found.');
 
   const valid = tracer.step(
-    'Verifikasi signature dengan public key penanda tangan',
+    "Verify the signature with the signer's public key",
     'RSA-PSS',
     () => pssVerifyDigest(publicKeyFromJwk(signer.sigPublicKey), hash, base64urlDecode(stored.value)),
-    (result) => ({ penandaTangan: signer.username, fingerprintKunci: signer.sigKeyFingerprint, hasil: result ? 'valid' : 'tidak valid' }),
+    (result) => ({ signer: signer.username, keyFingerprint: signer.sigKeyFingerprint, result: result ? 'valid' : 'invalid' }),
   );
 
   return {
@@ -99,9 +99,9 @@ export async function verifyStoredFile(
 
 export async function exportSignature(file: FileDocument): Promise<DetachedSignature> {
   const stored = file.signature;
-  if (!stored) throw badRequest('File ini belum ditandatangani.');
+  if (!stored) throw badRequest('This file has not been signed yet.');
   const signer = await User.findById(stored.signerId);
-  if (!signer) throw notFound('Penanda tangan tidak ditemukan.');
+  if (!signer) throw notFound('Signer not found.');
 
   return {
     format: SIGNATURE_FORMAT,
@@ -120,18 +120,18 @@ function parseDetachedSignature(raw: Uint8Array): DetachedSignature {
   try {
     parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw));
   } catch {
-    throw badRequest('File .sig tidak bisa dibaca.');
+    throw badRequest('The .sig file could not be read.');
   }
-  if (parsed === null || typeof parsed !== 'object') throw badRequest('File .sig tidak bisa dibaca.');
+  if (parsed === null || typeof parsed !== 'object') throw badRequest('The .sig file could not be read.');
 
   const candidate = parsed as Record<string, unknown>;
   const fields = ['format', 'algorithm', 'signer', 'keyFingerprint', 'fileName', 'fileHash', 'signature', 'signedAt'];
   for (const field of fields) {
-    if (typeof candidate[field] !== 'string') throw badRequest(`File .sig tidak lengkap: "${field}" tidak ada.`);
+    if (typeof candidate[field] !== 'string') throw badRequest(`The .sig file is incomplete: "${field}" is missing.`);
   }
   const signature = candidate as unknown as DetachedSignature;
   if (signature.format !== SIGNATURE_FORMAT || signature.algorithm !== SIGNATURE_ALGORITHM) {
-    throw badRequest('Format atau algoritma file .sig tidak didukung.');
+    throw badRequest('The .sig file uses an unsupported format or algorithm.');
   }
   return signature;
 }
@@ -142,10 +142,10 @@ export async function verifyExternalFile(data: Uint8Array, rawSignature: Uint8Ar
   const detached = parseDetachedSignature(rawSignature);
 
   const hash = tracer.step(
-    'Hash file yang diunggah',
+    'Hash the uploaded file',
     'SHA-256',
     () => sha256(data),
-    (value) => ({ ukuran: `${data.length} byte`, hash: bytesToHex(value), hashDiSig: detached.fileHash }),
+    (value) => ({ size: byteCount(data.length), hash: bytesToHex(value), hashInSigFile: detached.fileHash }),
   );
 
   const result: VerificationResult = {
@@ -160,24 +160,24 @@ export async function verifyExternalFile(data: Uint8Array, rawSignature: Uint8Ar
 
   const signer = await User.findOne({ username: detached.signer.toLowerCase() });
   if (!signer) {
-    return { ...result, reason: `Penanda tangan "${detached.signer}" tidak terdaftar di Crypta.` };
+    return { ...result, reason: `The signer "${detached.signer}" is not registered in Crypta.` };
   }
   if (signer.sigKeyFingerprint !== detached.keyFingerprint) {
-    return { ...result, reason: `Fingerprint kunci di file .sig tidak cocok dengan kunci milik "${signer.username}".` };
+    return { ...result, reason: `The key fingerprint in the .sig file does not match the key that belongs to "${signer.username}".` };
   }
 
   let signatureBytes: Uint8Array;
   try {
     signatureBytes = base64urlDecode(detached.signature);
   } catch {
-    return { ...result, reason: 'Nilai signature di file .sig rusak.' };
+    return { ...result, reason: 'The signature value in the .sig file is corrupted.' };
   }
 
   const valid = tracer.step(
-    'Verifikasi signature dengan public key penanda tangan',
+    "Verify the signature with the signer's public key",
     'RSA-PSS',
     () => pssVerifyDigest(publicKeyFromJwk(signer.sigPublicKey), hash, signatureBytes),
-    (ok) => ({ penandaTangan: signer.username, fingerprintKunci: signer.sigKeyFingerprint, hasil: ok ? 'valid' : 'tidak valid' }),
+    (ok) => ({ signer: signer.username, keyFingerprint: signer.sigKeyFingerprint, result: ok ? 'valid' : 'invalid' }),
   );
 
   return { ...result, valid, reason: valid ? REASON_VALID : REASON_INVALID };

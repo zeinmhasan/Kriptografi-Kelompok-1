@@ -45,13 +45,17 @@ export class Tracer {
   }
 }
 
+export function byteCount(count: number): string {
+  return `${count} ${count === 1 ? 'byte' : 'bytes'}`;
+}
+
 // Hex untuk ditampilkan: nilai pendek utuh, nilai panjang dipotong.
 export function preview(bytes: Uint8Array, maxBytes: number = 32): string {
   if (bytes.length <= maxBytes) return bytesToHex(bytes);
-  return `${bytesToHex(bytes.subarray(0, maxBytes))}… (${bytes.length} byte)`;
+  return `${bytesToHex(bytes.subarray(0, maxBytes))}… (${bytes.length} bytes)`;
 }
 
 // Kunci rahasia tidak pernah masuk ke jejak, hanya ukurannya.
 export function hidden(bytes: Uint8Array): string {
-  return `${bytes.length * 8} bit, disembunyikan`;
+  return `${bytes.length * 8} bits, hidden`;
 }

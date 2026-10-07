@@ -38,21 +38,21 @@ function repeat(byte: number, count: number): Uint8Array {
 
 const FIPS_180 = 'FIPS 180-4 / NIST CAVP';
 const RFC_4231 = 'RFC 4231';
-const RFC_7914 = 'RFC 7914 bagian 11';
-const RFC_6070_STYLE = 'Vektor PBKDF2-HMAC-SHA256 (password/salt)';
+const RFC_7914 = 'RFC 7914 section 11';
+const RFC_6070_STYLE = 'PBKDF2-HMAC-SHA256 vectors (password/salt)';
 const FIPS_197 = 'FIPS 197 Appendix C';
 const GCM_SPEC = 'GCM spec, McGrew & Viega';
 
 const sha256Cases: SelfTestCase[] = [
-  ['pesan kosong', text(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],
+  ['empty message', text(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],
   ['"abc"', text('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'],
   [
-    'pesan 448 bit',
+    '448-bit message',
     text('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq'),
     '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1',
   ],
   [
-    'satu juta huruf "a"',
+    'one million letters "a"',
     repeat(0x61, 1_000_000),
     'cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0',
   ],
@@ -83,7 +83,7 @@ const hmacCases: SelfTestCase[] = [
     '773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe',
   ],
   [
-    'test case 6, kunci lebih panjang dari blok',
+    'test case 6, key longer than the block',
     repeat(0xaa, 131),
     text('Test Using Larger Than Block-Size Key - Hash Key First'),
     '60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54',
@@ -98,7 +98,7 @@ const hmacCases: SelfTestCase[] = [
 const pbkdf2Cases: SelfTestCase[] = [
   {
     algorithm: 'PBKDF2-HMAC-SHA256',
-    name: '"passwd" / "salt", 1 iterasi, 64 byte',
+    name: '"passwd" / "salt", 1 iteration, 64 bytes',
     source: RFC_7914,
     run: () =>
       bytesToHex(pbkdf2Sha256(text('passwd'), text('salt'), 1, 64)) ===
@@ -107,7 +107,7 @@ const pbkdf2Cases: SelfTestCase[] = [
   },
   {
     algorithm: 'PBKDF2-HMAC-SHA256',
-    name: '"password" / "salt", 1 iterasi',
+    name: '"password" / "salt", 1 iteration',
     source: RFC_6070_STYLE,
     run: () =>
       bytesToHex(pbkdf2Sha256(text('password'), text('salt'), 1, 32)) ===
@@ -115,7 +115,7 @@ const pbkdf2Cases: SelfTestCase[] = [
   },
   {
     algorithm: 'PBKDF2-HMAC-SHA256',
-    name: '"password" / "salt", 2 iterasi',
+    name: '"password" / "salt", 2 iterations',
     source: RFC_6070_STYLE,
     run: () =>
       bytesToHex(pbkdf2Sha256(text('password'), text('salt'), 2, 32)) ===
@@ -123,7 +123,7 @@ const pbkdf2Cases: SelfTestCase[] = [
   },
   {
     algorithm: 'PBKDF2-HMAC-SHA256',
-    name: '"password" / "salt", 4096 iterasi',
+    name: '"password" / "salt", 4096 iterations',
     source: RFC_6070_STYLE,
     run: () =>
       bytesToHex(pbkdf2Sha256(text('password'), text('salt'), 4096, 32)) ===
@@ -183,7 +183,7 @@ export interface GcmVector {
 
 export const GCM_VECTORS: GcmVector[] = [
   {
-    name: 'test case 13: plaintext kosong',
+    name: 'test case 13: empty plaintext',
     key: '00'.repeat(32),
     iv: '00'.repeat(12),
     plaintext: '',
@@ -192,7 +192,7 @@ export const GCM_VECTORS: GcmVector[] = [
     tag: '530f8afbc74536b9a963b4f1c4cb738b',
   },
   {
-    name: 'test case 14: satu blok nol',
+    name: 'test case 14: one zero block',
     key: '00'.repeat(32),
     iv: '00'.repeat(12),
     plaintext: '00'.repeat(16),
@@ -201,7 +201,7 @@ export const GCM_VECTORS: GcmVector[] = [
     tag: 'd0d1c8a799996bf0265b98b5d48ab919',
   },
   {
-    name: 'test case 15: empat blok',
+    name: 'test case 15: four blocks',
     key: GCM_KEY,
     iv: 'cafebabefacedbaddecaf888',
     plaintext: GCM_PLAINTEXT_64,
@@ -212,7 +212,7 @@ export const GCM_VECTORS: GcmVector[] = [
     tag: 'b094dac5d93471bdec1a502270e3cc6c',
   },
   {
-    name: 'test case 16: dengan AAD, blok terakhir tidak penuh',
+    name: 'test case 16: with AAD, partial final block',
     key: GCM_KEY,
     iv: 'cafebabefacedbaddecaf888',
     plaintext: GCM_PLAINTEXT_60,
@@ -223,7 +223,7 @@ export const GCM_VECTORS: GcmVector[] = [
     tag: '76fc6ece0f4e1768cddf8853bb2d551b',
   },
   {
-    name: 'test case 17: IV 64 bit',
+    name: 'test case 17: 64-bit IV',
     key: GCM_KEY,
     iv: 'cafebabefacedbad',
     plaintext: GCM_PLAINTEXT_60,
@@ -234,7 +234,7 @@ export const GCM_VECTORS: GcmVector[] = [
     tag: '3a337dbf46a792c45e454913fe2ea8f2',
   },
   {
-    name: 'test case 18: IV 480 bit',
+    name: 'test case 18: 480-bit IV',
     key: GCM_KEY,
     iv:
       '9313225df88406e555909c5aff5269aa6a7a9538534f7da1e4c303d2a318a728' +
@@ -251,7 +251,7 @@ export const GCM_VECTORS: GcmVector[] = [
 const gcmCases: SelfTestCase[] = GCM_VECTORS.flatMap((vector) => [
   {
     algorithm: 'AES-256-GCM',
-    name: `${vector.name} (enkripsi)`,
+    name: `${vector.name} (encrypt)`,
     source: GCM_SPEC,
     run: () => {
       const result = gcmEncrypt(hex(vector.key), hex(vector.iv), hex(vector.plaintext), hex(vector.aad));
@@ -260,7 +260,7 @@ const gcmCases: SelfTestCase[] = GCM_VECTORS.flatMap((vector) => [
   },
   {
     algorithm: 'AES-256-GCM',
-    name: `${vector.name} (dekripsi)`,
+    name: `${vector.name} (decrypt)`,
     source: GCM_SPEC,
     run: () => {
       const plaintext = gcmDecrypt(
@@ -277,8 +277,8 @@ const gcmCases: SelfTestCase[] = GCM_VECTORS.flatMap((vector) => [
 
 gcmCases.push({
   algorithm: 'AES-256-GCM',
-  name: 'tag yang diubah satu bit ditolak',
-  source: 'Uji negatif',
+  name: 'a tag with one bit changed is rejected',
+  source: 'Negative test',
   run: () => {
     const vector = GCM_VECTORS[3];
     const tag = hex(vector.tag);
@@ -295,8 +295,8 @@ gcmCases.push({
 const mgf1Cases: SelfTestCase[] = [
   {
     algorithm: 'MGF1-SHA256',
-    name: 'seed "bar", 50 byte',
-    source: 'RFC 8017 lampiran B.2.1',
+    name: 'seed "bar", 50 bytes',
+    source: 'RFC 8017 appendix B.2.1',
     run: () =>
       bytesToHex(mgf1Sha256(text('bar'), 50)) ===
       '382576a7841021cc28fc4c0948753fb8312090cea942ea4c4e735d10dc724b15' +
@@ -307,8 +307,8 @@ const mgf1Cases: SelfTestCase[] = [
 const jwtCases: SelfTestCase[] = [
   {
     algorithm: 'JWT HS256',
-    name: 'tanda tangan token contoh',
-    source: 'Token contoh jwt.io',
+    name: 'sample token signature',
+    source: 'jwt.io sample token',
     run: () => {
       const signingInput =
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
@@ -328,14 +328,14 @@ function textbookRsaCases(): SelfTestCase[] {
   return [
     {
       algorithm: 'RSA',
-      name: 'operasi kunci publik, contoh buku teks',
-      source: 'Contoh RSA klasik (n = 3233)',
+      name: 'public-key operation, textbook example',
+      source: 'Classic RSA example (n = 3233)',
       run: () => rsaPublicOperation(key, 65n) === 2790n,
     },
     {
       algorithm: 'RSA',
-      name: 'operasi kunci privat dengan CRT, contoh buku teks',
-      source: 'Contoh RSA klasik (n = 3233)',
+      name: 'private-key operation with CRT, textbook example',
+      source: 'Classic RSA example (n = 3233)',
       run: () => rsaPrivateOperation(key, 2790n) === 65n,
     },
   ];
@@ -344,11 +344,11 @@ function textbookRsaCases(): SelfTestCase[] {
 // OAEP dan PSS memakai nilai acak, sehingga diuji lewat konsistensi berpasangan
 // pada kunci yang baru dibangkitkan, ditambah penolakan terhadap data yang diubah.
 function pairwiseRsaCases(keyPair: RsaKeyPair, bits: number): SelfTestCase[] {
-  const source = `Konsistensi berpasangan, kunci ${bits}-bit baru`;
+  const source = `Pairwise consistency, fresh ${bits}-bit key`;
   return [
     {
       algorithm: 'RSA-OAEP',
-      name: 'enkripsi lalu dekripsi mengembalikan pesan',
+      name: 'encrypt then decrypt returns the message',
       source,
       run: () => {
         const message = randomBytes(32);
@@ -358,7 +358,7 @@ function pairwiseRsaCases(keyPair: RsaKeyPair, bits: number): SelfTestCase[] {
     },
     {
       algorithm: 'RSA-OAEP',
-      name: 'ciphertext yang diubah ditolak',
+      name: 'a modified ciphertext is rejected',
       source,
       run: () => {
         const ciphertext = oaepEncrypt(keyPair.publicKey, randomBytes(32));
@@ -373,7 +373,7 @@ function pairwiseRsaCases(keyPair: RsaKeyPair, bits: number): SelfTestCase[] {
     },
     {
       algorithm: 'RSA-PSS',
-      name: 'tanda tangan terverifikasi',
+      name: 'the signature verifies',
       source,
       run: () => {
         const message = randomBytes(100);
@@ -382,7 +382,7 @@ function pairwiseRsaCases(keyPair: RsaKeyPair, bits: number): SelfTestCase[] {
     },
     {
       algorithm: 'RSA-PSS',
-      name: 'pesan yang diubah ditolak',
+      name: 'a modified message is rejected',
       source,
       run: () => {
         const message = randomBytes(100);
@@ -393,7 +393,7 @@ function pairwiseRsaCases(keyPair: RsaKeyPair, bits: number): SelfTestCase[] {
     },
     {
       algorithm: 'RSA-PSS',
-      name: 'tanda tangan yang diubah ditolak',
+      name: 'a modified signature is rejected',
       source,
       run: () => {
         const message = randomBytes(100);
@@ -448,8 +448,8 @@ export function runSelfTests(): SelfTestResult[] {
   }
   results.push({
     algorithm: 'RSA',
-    name: `pembangkitan kunci ${SELF_TEST_RSA_BITS}-bit: n = p * q dan e * d = 1 (mod lambda)`,
-    source: 'Pemeriksaan struktur kunci',
+    name: `${SELF_TEST_RSA_BITS}-bit key generation: n = p * q and e * d = 1 (mod lambda)`,
+    source: 'Key structure check',
     passed: keyPair !== undefined && isConsistentKey(keyPair),
     ms: performance.now() - keygenStart,
     error: keygenError,

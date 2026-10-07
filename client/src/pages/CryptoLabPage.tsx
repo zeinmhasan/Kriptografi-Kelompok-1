@@ -1,20 +1,20 @@
 import { Activity, CircleCheck, CircleX, Gauge, ListChecks, LoaderCircle, Zap } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react';
 import { PageHeader } from '../components/Layout';
 import { PasswordDialog } from '../components/PasswordDialog';
 import { TamperTable } from '../components/TamperTable';
 import { TraceView } from '../components/TraceView';
 import { useFiles } from '../hooks/useFiles';
 import { useInspector } from '../hooks/useInspector';
-import { formatMs } from '../lib/format';
+import { formatMs, formatNumber, formatTime } from '../lib/format';
 import { api, errorMessage } from '../services/api';
 import type { BenchmarkReport, SelfTestReport, TamperReport } from '../types';
 
 const TABS = [
-  { id: 'inspector', label: 'Inspector', icon: Activity },
-  { id: 'tamper', label: 'Simulasi Tamper', icon: Zap },
-  { id: 'selftest', label: 'Self-Test', icon: ListChecks },
-  { id: 'benchmark', label: 'Benchmark', icon: Gauge },
+  { id: 'inspector', label: 'Inspector', icon: Activity, Panel: InspectorTab },
+  { id: 'tamper', label: 'Tamper Simulation', icon: Zap, Panel: TamperTab },
+  { id: 'selftest', label: 'Self-Test', icon: ListChecks, Panel: SelfTestTab },
+  { id: 'benchmark', label: 'Benchmark', icon: Gauge, Panel: BenchmarkTab },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -22,24 +22,49 @@ type TabId = (typeof TABS)[number]['id'];
 export function CryptoLabPage() {
   const [tab, setTab] = useState<TabId>('inspector');
 
+  // Di layar sempit deretan tab bergulir ke samping; tab yang aktif selalu dibawa ke area terlihat.
+  useEffect(() => {
+    document.getElementById(`lab-tab-${tab}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [tab]);
+
+  // Panah kiri/kanan, Home, dan End berpindah tab, sesuai pola tab pada umumnya.
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const current = TABS.findIndex(({ id }) => id === tab);
+    const target =
+      event.key === 'ArrowRight'
+        ? (current + 1) % TABS.length
+        : event.key === 'ArrowLeft'
+          ? (current - 1 + TABS.length) % TABS.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? TABS.length - 1
+              : -1;
+    if (target < 0) return;
+    event.preventDefault();
+    setTab(TABS[target].id);
+    document.getElementById(`lab-tab-${TABS[target].id}`)?.focus();
+  }
+
   return (
     <>
       <PageHeader
         title="Crypto Lab"
-        description="Semua algoritma di Crypta ditulis sendiri dari nol. Halaman ini memperlihatkan cara kerjanya dan membuktikan kebenarannya."
+        description="Every algorithm in Crypta is written from scratch. This page shows how they work and proves they are correct."
       />
 
-      <div role="tablist" className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-800">
+      <div role="tablist" aria-label="Crypto Lab tools" className="segmented mb-6 w-fit max-w-full" onKeyDown={handleKeyDown}>
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
+            id={`lab-tab-${id}`}
             type="button"
             role="tab"
             aria-selected={tab === id}
+            aria-controls={`lab-panel-${id}`}
+            tabIndex={tab === id ? 0 : -1}
             onClick={() => setTab(id)}
-            className={`-mb-px flex cursor-pointer items-center gap-2 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${
-              tab === id ? 'border-emerald-400 font-medium text-emerald-300' : 'border-transparent text-slate-400 hover:text-slate-100'
-            }`}
+            className="segment"
           >
             <Icon className="size-4" />
             {label}
@@ -47,28 +72,28 @@ export function CryptoLabPage() {
         ))}
       </div>
 
-      {tab === 'inspector' && <InspectorTab />}
-      {tab === 'tamper' && <TamperTab />}
-      {tab === 'selftest' && <SelfTestTab />}
-      {tab === 'benchmark' && <BenchmarkTab />}
+      {/* Semua panel tetap terpasang, sehingga hasil Self-Test dan Benchmark tidak hilang saat berpindah tab. */}
+      {TABS.map(({ id, Panel }) => (
+        <div key={id} id={`lab-panel-${id}`} role="tabpanel" aria-labelledby={`lab-tab-${id}`} hidden={tab !== id}>
+          <Panel />
+        </div>
+      ))}
     </>
   );
 }
 
 function Intro({ children }: { children: ReactNode }) {
-  return <p className="mb-4 max-w-3xl text-sm text-slate-400">{children}</p>;
+  return <p className="mb-4 max-w-[68ch] text-sm text-ink-muted">{children}</p>;
 }
 
 function ErrorNote({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+    <p role="alert" className="alert alert-error mt-4">
       {message}
     </p>
   );
 }
-
-const timeFormat = new Intl.DateTimeFormat('id-ID', { timeStyle: 'medium' });
 
 function InspectorTab() {
   const { records, selectedId, select } = useInspector();
@@ -77,26 +102,29 @@ function InspectorTab() {
   return (
     <>
       <Intro>
-        Setiap operasi kriptografi mencatat langkahnya: algoritma yang dipakai, nilai antara seperti IV, auth tag, dan hash,
-        serta durasinya. Kunci AES dan private key tidak pernah ikut dicatat.
+        Every cryptographic operation records its steps: the algorithm used, intermediate values such as the IV, auth tag, and
+        hash, and how long each step took. The AES key and private keys are never recorded.
       </Intro>
       {!selected ? (
-        <p className="card px-6 py-10 text-center text-sm text-slate-500">
-          Belum ada operasi pada sesi ini. Upload, dekripsi, tanda tangani, atau bagikan file, lalu kembali ke sini.
+        <p className="card px-6 py-10 text-center text-sm text-ink-muted">
+          No operations in this session yet. Upload, decrypt, sign, or share a file, then come back here.
         </p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <ul className="card max-h-[32rem] divide-y divide-slate-800 overflow-y-auto lg:col-span-1">
+        <div className="grid items-start gap-4 lg:grid-cols-3">
+          <ul className="well max-h-[32rem] space-y-1 overflow-y-auto p-1.5 lg:col-span-1">
             {records.map((record) => (
               <li key={record.id}>
                 <button
                   type="button"
                   onClick={() => select(record.id)}
-                  className={`w-full cursor-pointer px-4 py-2.5 text-left hover:bg-slate-800/50 ${record.id === selected.id ? 'bg-emerald-500/10' : ''}`}
+                  aria-current={record.id === selected.id ? 'true' : undefined}
+                  className={`w-full cursor-pointer rounded-lg px-3 py-2 text-left transition-[box-shadow] duration-150 focus-visible:-outline-offset-2 ${record.id === selected.id ? 'bg-well shadow-sunk' : ''}`}
                 >
-                  <p className="text-sm text-slate-100">{record.trace.operation}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {timeFormat.format(record.at)}
+                  <p className={`text-sm ${record.id === selected.id ? 'font-medium text-stamp' : 'text-ink'}`}>
+                    {record.trace.operation}
+                  </p>
+                  <p className="truncate text-xs text-ink-muted">
+                    <span className="tabular-nums">{formatTime(record.at)}</span>
                     {record.subject && ` · ${record.subject}`}
                   </p>
                 </button>
@@ -104,7 +132,7 @@ function InspectorTab() {
             ))}
           </ul>
           <div className="card p-4 lg:col-span-2">
-            <TraceView trace={selected.trace} />
+            <TraceView key={selected.id} trace={selected.trace} />
           </div>
         </div>
       )}
@@ -125,46 +153,55 @@ function TamperTab() {
   return (
     <>
       <Intro>
-        Server mengubah satu bit acak pada ciphertext, auth tag, IV, kunci AES terbungkus, isi file, dan signature secara
-        bergantian, lalu mencoba memproses hasilnya. Percobaan dilakukan pada salinan di memori, jadi file asli tetap utuh.
+        The server flips one random bit in the ciphertext, auth tag, IV, wrapped AES key, file contents, and signature in turn,
+        then tries to process the result. Each experiment runs on an in-memory copy, so the original file stays intact.
       </Intro>
 
       <div className="card flex flex-wrap items-end gap-3 p-4">
         <div className="min-w-0 flex-1 basis-64">
           <label htmlFor="tamper-file" className="label">
-            File yang diuji
+            File to test
           </label>
-          <select id="tamper-file" className="input" value={selectedId} onChange={(event) => setFileId(event.target.value)} disabled={files.length === 0}>
-            {files.length === 0 && <option value="">Belum ada file</option>}
+          <select
+            id="tamper-file"
+            className="input"
+            aria-describedby="tamper-file-hint"
+            value={selectedId}
+            onChange={(event) => setFileId(event.target.value)}
+            disabled={files.length === 0}
+          >
+            {files.length === 0 && <option value="">{listing ? 'No files yet' : 'Loading files…'}</option>}
             {files.map((file) => (
               <option key={file.id} value={file.id}>
                 {file.originalName}
-                {file.signature ? ' (ditandatangani)' : ''}
+                {file.signature ? ' (signed)' : ''}
               </option>
             ))}
           </select>
         </div>
         <button type="button" className="btn btn-primary" disabled={!selectedId} onClick={() => setAsking(true)}>
           <Zap className="size-4" />
-          Jalankan Simulasi
+          Run Simulation
         </button>
       </div>
-      <p className="mt-2 text-xs text-slate-500">File yang sudah ditandatangani menambah tiga percobaan terhadap signature RSA-PSS.</p>
+      <p id="tamper-file-hint" className="hint mt-2">
+        A signed file adds three experiments against its RSA-PSS signature.
+      </p>
       <ErrorNote message={listError} />
 
       {report && (
         <div className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-slate-100">Hasil untuk "{report.fileName}"</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Results for "{report.fileName}"</h2>
           <TamperTable experiments={report.experiments} />
         </div>
       )}
 
       {asking && (
         <PasswordDialog
-          title="Simulasi tamper"
-          description="Password dibutuhkan untuk membuka private key, yang dipakai membuka kunci AES file ini."
-          confirmLabel="Jalankan Simulasi"
-          busyLabel="Menjalankan…"
+          title="Tamper simulation"
+          description="Your password is needed to unlock the private key that unwraps this file's AES key."
+          confirmLabel="Run Simulation"
+          busyLabel="Running…"
           onSubmit={async (password) => {
             const result = await api.tamperTest(selectedId, password);
             inspector.record(result.trace, result.fileName);
@@ -195,50 +232,52 @@ function SelfTestTab() {
   }
 
   const algorithms = report ? [...new Set(report.results.map((result) => result.algorithm))] : [];
+  const allPassed = report !== null && report.passed === report.total;
 
   return (
     <>
       <Intro>
-        Known-answer test: setiap algoritma dijalankan dengan masukan dari standar resminya (FIPS, NIST, RFC) dan keluarannya
-        dibandingkan dengan jawaban yang tercantum di standar itu. RSA-OAEP dan RSA-PSS memakai nilai acak, jadi diuji lewat
-        konsistensi berpasangan pada kunci yang baru dibangkitkan.
+        Known-answer tests: each algorithm runs on inputs from its official standard (FIPS, NIST, RFC) and its output is compared
+        with the answer published there. RSA-OAEP and RSA-PSS use random values, so they are tested for pairwise consistency on
+        a freshly generated key.
       </Intro>
 
       <button type="button" className="btn btn-primary" onClick={() => void run()} disabled={busy}>
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : <ListChecks className="size-4" />}
-        {busy ? 'Menjalankan…' : 'Jalankan Self-Test'}
+        {busy ? 'Running…' : 'Run Self-Test'}
       </button>
       <ErrorNote message={error} />
 
       {report && (
         <div className="mt-6 space-y-4">
-          <p className={`text-sm font-medium ${report.passed === report.total ? 'text-emerald-300' : 'text-rose-300'}`}>
-            {report.passed} dari {report.total} pengujian lulus.
+          <p className={`flex items-center gap-2 text-sm font-medium ${allPassed ? 'text-seal' : 'text-alert'}`} role="status">
+            {allPassed ? <CircleCheck className="size-4 shrink-0" /> : <CircleX className="size-4 shrink-0" />}
+            {report.passed} of {report.total} tests passed.
           </p>
           {algorithms.map((algorithm) => {
             const results = report.results.filter((result) => result.algorithm === algorithm);
             return (
               <section key={algorithm} className="card overflow-hidden">
-                <h2 className="flex items-center justify-between border-b border-slate-800 bg-slate-950/40 px-4 py-2.5 text-sm font-semibold text-slate-100">
+                <h2 className="flex items-center justify-between gap-3 groove-b px-4 py-2.5 text-sm font-semibold text-ink">
                   <span className="font-mono">{algorithm}</span>
-                  <span className="text-xs font-normal text-slate-400">
-                    {results.filter((result) => result.passed).length}/{results.length} lulus
+                  <span className="text-xs font-normal text-ink-muted tabular-nums">
+                    {results.filter((result) => result.passed).length}/{results.length} passed
                   </span>
                 </h2>
-                <ul className="divide-y divide-slate-800">
+                <ul className="divide-y divide-line">
                   {results.map((result, index) => (
                     <li key={index} className="flex items-start gap-3 px-4 py-2.5">
                       {result.passed ? (
-                        <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-400" aria-label="Lulus" />
+                        <CircleCheck className="mt-0.5 size-4 shrink-0 text-seal" role="img" aria-label="Passed" />
                       ) : (
-                        <CircleX className="mt-0.5 size-4 shrink-0 text-rose-400" aria-label="Gagal" />
+                        <CircleX className="mt-0.5 size-4 shrink-0 text-alert" role="img" aria-label="Failed" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-slate-100">{result.name}</p>
-                        <p className="text-xs text-slate-500">{result.source}</p>
-                        {result.error && <p className="text-xs text-rose-300">{result.error}</p>}
+                        <p className="text-sm text-ink">{result.name}</p>
+                        <p className="text-xs text-ink-muted">{result.source}</p>
+                        {result.error && <p className="text-xs text-alert">{result.error}</p>}
                       </div>
-                      <span className="font-mono text-xs whitespace-nowrap text-slate-400">{formatMs(result.ms)}</span>
+                      <span className="font-mono text-xs whitespace-nowrap text-ink-muted tabular-nums">{formatMs(result.ms)}</span>
                     </li>
                   ))}
                 </ul>
@@ -271,15 +310,17 @@ function BenchmarkTab() {
   return (
     <>
       <Intro>
-        Mengukur kecepatan implementasi buatan sendiri di mesin ini. Angka di sini adalah dasar pemilihan batas ukuran file dan
-        jumlah iterasi PBKDF2, dan memperlihatkan alasan dipakainya hybrid encryption.
+        Measures the speed of the hand-written implementation on this machine. These numbers are the basis for the file size
+        limit and the PBKDF2 iteration count, and they show why hybrid encryption is used.
       </Intro>
 
       <button type="button" className="btn btn-primary" onClick={() => void run()} disabled={busy}>
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Gauge className="size-4" />}
-        {busy ? 'Mengukur…' : 'Jalankan Benchmark'}
+        {busy ? 'Measuring…' : 'Run Benchmark'}
       </button>
-      {busy && <p className="mt-2 text-xs text-slate-500">Pengukuran pertama juga membangkitkan satu kunci RSA, jadi butuh beberapa detik.</p>}
+      <p className="hint mt-2 empty:hidden" aria-live="polite">
+        {busy && 'The first run also generates an RSA key, so it takes a few seconds.'}
+      </p>
       <ErrorNote message={error} />
 
       {report && <BenchmarkResults report={report} />}
@@ -290,15 +331,15 @@ function BenchmarkTab() {
 function BenchmarkResults({ report }: { report: BenchmarkReport }) {
   const megabytes = (value: number) => `${value.toFixed(1)} MB/s`;
   const rows: [string, string, string][] = [
-    ['SHA-256', megabytes(report.sha256.megabytesPerSecond), `${report.sha256.megabytes} MB dalam ${formatMs(report.sha256.ms)}`],
-    ['AES-256-GCM enkripsi', megabytes(report.gcmEncrypt.megabytesPerSecond), `${report.gcmEncrypt.megabytes} MB dalam ${formatMs(report.gcmEncrypt.ms)}`],
-    ['AES-256-GCM dekripsi', megabytes(report.gcmDecrypt.megabytesPerSecond), `${report.gcmDecrypt.megabytes} MB dalam ${formatMs(report.gcmDecrypt.ms)}`],
-    ['PBKDF2-HMAC-SHA256', formatMs(report.pbkdf2.ms), `${report.pbkdf2.iterations.toLocaleString('id-ID')} iterasi, satu kali penurunan kunci`],
-    [`Pembangkitan kunci RSA-${report.keygen.bits}`, formatMs(report.keygen.ms), 'Satu key pair, termasuk pencarian dua bilangan prima'],
-    [`RSA-${report.rsa.bits} OAEP enkripsi`, formatMs(report.rsa.oaepEncryptMs), 'Operasi kunci publik, e = 65537'],
-    [`RSA-${report.rsa.bits} OAEP dekripsi`, formatMs(report.rsa.oaepDecryptMs), 'Operasi kunci privat dengan CRT'],
-    [`RSA-${report.rsa.bits} PSS tanda tangan`, formatMs(report.rsa.pssSignMs), 'Operasi kunci privat dengan CRT'],
-    [`RSA-${report.rsa.bits} PSS verifikasi`, formatMs(report.rsa.pssVerifyMs), 'Operasi kunci publik, e = 65537'],
+    ['SHA-256', megabytes(report.sha256.megabytesPerSecond), `${report.sha256.megabytes} MB in ${formatMs(report.sha256.ms)}`],
+    ['AES-256-GCM encryption', megabytes(report.gcmEncrypt.megabytesPerSecond), `${report.gcmEncrypt.megabytes} MB in ${formatMs(report.gcmEncrypt.ms)}`],
+    ['AES-256-GCM decryption', megabytes(report.gcmDecrypt.megabytesPerSecond), `${report.gcmDecrypt.megabytes} MB in ${formatMs(report.gcmDecrypt.ms)}`],
+    ['PBKDF2-HMAC-SHA256', formatMs(report.pbkdf2.ms), `${formatNumber(report.pbkdf2.iterations)} iterations, one key derivation`],
+    [`RSA-${report.keygen.bits} key generation`, formatMs(report.keygen.ms), 'One key pair, including the search for two primes'],
+    [`RSA-${report.rsa.bits} OAEP encryption`, formatMs(report.rsa.oaepEncryptMs), 'Public-key operation, e = 65537'],
+    [`RSA-${report.rsa.bits} OAEP decryption`, formatMs(report.rsa.oaepDecryptMs), 'Private-key operation with CRT'],
+    [`RSA-${report.rsa.bits} PSS signing`, formatMs(report.rsa.pssSignMs), 'Private-key operation with CRT'],
+    [`RSA-${report.rsa.bits} PSS verification`, formatMs(report.rsa.pssVerifyMs), 'Public-key operation, e = 65537'],
   ];
 
   const aesKilobytes = report.gcmDecrypt.megabytesPerSecond * 1024;
@@ -306,21 +347,31 @@ function BenchmarkResults({ report }: { report: BenchmarkReport }) {
 
   return (
     <div className="mt-6 space-y-6">
-      <div className="overflow-x-auto rounded-lg border border-slate-800">
-        <table className="w-full min-w-[34rem] text-left text-sm">
-          <thead className="bg-slate-950/60 text-xs text-slate-400">
+      <div className="well overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-line text-xs text-ink-muted">
             <tr>
-              <th className="px-4 py-2 font-medium">Operasi</th>
-              <th className="px-4 py-2 text-right font-medium">Hasil</th>
-              <th className="px-4 py-2 font-medium">Keterangan</th>
+              <th scope="col" className="px-4 py-2 font-medium">
+                Operation
+              </th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">
+                Result
+              </th>
+              <th scope="col" className="hidden px-4 py-2 font-medium sm:table-cell">
+                Notes
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800">
+          <tbody className="divide-y divide-line">
             {rows.map(([operation, value, note]) => (
               <tr key={operation}>
-                <td className="px-4 py-2.5 text-slate-100">{operation}</td>
-                <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap text-emerald-300">{value}</td>
-                <td className="px-4 py-2.5 text-slate-400">{note}</td>
+                <th scope="row" className="px-4 py-2.5 font-normal text-ink">
+                  {operation}
+                  {/* Di layar sempit kolom Notes disembunyikan; isinya pindah ke bawah nama operasi. */}
+                  <span className="mt-0.5 block text-xs text-ink-muted sm:hidden">{note}</span>
+                </th>
+                <td className="px-4 py-2.5 text-right align-top font-mono font-semibold whitespace-nowrap text-ink tabular-nums">{value}</td>
+                <td className="hidden px-4 py-2.5 text-ink-muted sm:table-cell">{note}</td>
               </tr>
             ))}
           </tbody>
@@ -328,16 +379,16 @@ function BenchmarkResults({ report }: { report: BenchmarkReport }) {
       </div>
 
       <section className="card p-4">
-        <h2 className="text-sm font-semibold text-slate-100">Mengapa hybrid encryption</h2>
-        <p className="mt-2 text-sm text-slate-300">
-          RSA-OAEP {report.rsa.bits}-bit hanya bisa mengenkripsi {report.rsa.oaepMaxMessageBytes} byte per operasi. Jika dipakai
-          langsung untuk isi file, laju dekripsinya sekitar{' '}
-          <span className="font-mono text-emerald-300">{report.rsa.oaepDecryptKilobytesPerSecond.toFixed(1)} KB/s</span>, sedangkan
-          AES-256-GCM mencapai <span className="font-mono text-emerald-300">{aesKilobytes.toFixed(0)} KB/s</span>: sekitar{' '}
-          <span className="font-mono text-emerald-300">{Math.round(ratio).toLocaleString('id-ID')} kali</span> lebih cepat.
+        <h2 className="text-sm font-semibold text-ink">Why hybrid encryption</h2>
+        <p className="mt-2 max-w-[68ch] text-sm text-ink-soft">
+          RSA-OAEP at {report.rsa.bits} bits can only encrypt {report.rsa.oaepMaxMessageBytes} bytes per operation. Used directly
+          on file contents, it would decrypt at about{' '}
+          <span className="font-mono font-semibold text-ink">{report.rsa.oaepDecryptKilobytesPerSecond.toFixed(1)} KB/s</span>, while
+          AES-256-GCM reaches <span className="font-mono font-semibold text-ink">{formatNumber(Math.round(aesKilobytes))} KB/s</span>: about{' '}
+          <span className="font-mono font-semibold text-ink">{formatNumber(Math.round(ratio))} times</span> faster.
         </p>
-        <p className="mt-2 text-sm text-slate-300">
-          Karena itu isi file dienkripsi dengan AES, dan RSA hanya dipakai sekali per file untuk membungkus kunci AES 32 byte.
+        <p className="mt-2 max-w-[68ch] text-sm text-ink-soft">
+          That is why file contents are encrypted with AES, and RSA is used only once per file to wrap the 32-byte AES key.
         </p>
       </section>
     </div>
