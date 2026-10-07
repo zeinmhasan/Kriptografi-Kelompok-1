@@ -1,0 +1,16 @@
+{
+  "name": "crypta",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Secure File Storage & Digital Signature Platform",
+  "scripts": {
+    "setup": "npm install --prefix server && npm install --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "test": "npm test --prefix server",
+    "e2e": "npm run e2e --prefix server",
+    "bench": "npm run bench --prefix server"
+  }
+}

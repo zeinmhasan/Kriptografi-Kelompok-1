@@ -1,0 +1,30 @@
+# Dependensi: dipasang ulang dengan `npm run setup`
+node_modules/
+
+# Hasil build: dibuat ulang dengan `npm run build`
+dist/
+*.tsbuildinfo
+coverage/
+
+# Konfigurasi lokal dan rahasia. Contohnya ada di server/.env.example
+.env
+.env.*
+!.env.example
+
+# File terenkripsi milik tiap pengguna lokal
+server/storage/encrypted/*
+!server/storage/encrypted/.gitkeep
+
+# Log
+*.log
+npm-debug.log*
+
+# Editor dan sistem operasi
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Pengaturan lokal asisten AI
+.claude/
