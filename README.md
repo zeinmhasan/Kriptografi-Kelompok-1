@@ -74,31 +74,3 @@ Semua ada di [server/src/crypto](server/src/crypto) dan tidak bergantung pada pa
 | `jwt.ts` | JWT HS256 | RFC 7519 |
 | `bytes.ts` | Hex, base64url, perbandingan constant-time | — |
 | `selftest.ts`, `benchmark.ts` | Known-answer test dan pengukuran kecepatan | — |
-
-Dua pengecualian dari aturan "tanpa library":
-
-- `random.ts` memakai `crypto.randomBytes` Node.js, karena CSPRNG bergantung pada entropi sistem operasi.
-- File di `server/tests` memakai modul `crypto` Node.js sebagai pembanding. Kode aplikasi tidak pernah memanggilnya.
-
-## Alur demo yang disarankan
-
-1. Daftarkan dua akun di dua jendela browser. Crypto Inspector menampilkan pembangkitan kedua key pair.
-2. Upload file. Inspector menampilkan hash, IV, auth tag, dan kunci AES yang terbungkus.
-3. Buka file di **My Files** untuk melihat metadatanya, lalu **Dekripsi & Unduh**.
-4. **Tanda Tangani**, **Verifikasi**, lalu **Ekspor .sig**.
-5. **Bagikan** ke akun kedua. Di akun kedua, buka **Shared** dan dekripsi dengan password akun itu sendiri.
-6. Di akun kedua, buka **Verify** dan periksa file asli dengan `.sig`-nya. Ubah satu byte file itu lalu periksa lagi.
-7. **Uji Tamper** pada file: sembilan percobaan pembalikan satu bit.
-8. **Crypto Lab**: jalankan Self-Test dan Benchmark.
-
-## Batasan
-
-Ini proyek akademik, bukan layanan production.
-
-- Server melihat plaintext dan password saat memproses permintaan. Ini encryption-at-rest, bukan end-to-end encryption.
-- Implementasi AES dan RSA tidak constant-time, jadi tidak tahan serangan side-channel.
-- Lupa password berarti private key tidak bisa dibuka dan file hilang permanen.
-- Mencabut akses tidak menarik kembali salinan yang sudah diunduh penerima.
-- Logout menghapus cookie sesi, tetapi token yang sudah disalin tetap berlaku sampai kedaluwarsa (8 jam).
-- Operasi kriptografi berjalan sinkron di thread utama server, kecuali pembangkitan kunci RSA.
-- Aplikasi berjalan lewat HTTP lokal tanpa TLS.
